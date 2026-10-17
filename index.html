@@ -36,6 +36,9 @@ body{margin:0;background:var(--bg);color:var(--text);
 .scroll::-webkit-scrollbar{width:8px}
 .scroll::-webkit-scrollbar-thumb{background:#2c3444;border-radius:8px}
 
+/* 侧栏底部 */
+.sidebar-footer{flex:0 0 auto;padding:9px 14px 12px;border-top:1px solid var(--border);background:#10141c;}
+
 /* 模式切换 */
 .mode-bar{display:flex;background:#12161f;border-radius:10px;padding:3px;gap:3px;
   border:1px solid var(--border);margin-bottom:9px}
@@ -182,6 +185,41 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
   max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 
+/* 关于弹窗 */
+.about-overlay{position:fixed;inset:0;background:rgba(6,9,14,.82);backdrop-filter:blur(5px);
+  display:flex;align-items:center;justify-content:center;z-index:150;transition:.2s;padding:20px}
+.about-overlay.hidden{opacity:0;pointer-events:none}
+.about-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  width:min(420px,100%);box-shadow:0 24px 70px rgba(0,0,0,.7);overflow:hidden;
+  transform:translateY(8px) scale(.98);transition:.22s}
+.about-overlay:not(.hidden) .about-box{transform:none}
+.about-head{display:flex;align-items:center;gap:12px;padding:18px 20px 14px;
+  background:linear-gradient(135deg,rgba(79,140,255,.16),rgba(139,92,246,.12));
+  border-bottom:1px solid var(--border)}
+.about-logo{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+  font-size:21px;background:linear-gradient(135deg,#4f8cff,#22c55e);
+  box-shadow:0 4px 18px rgba(79,140,255,.4);flex:0 0 auto}
+.about-head h2{margin:0;font-size:15px;font-weight:650;letter-spacing:.3px}
+.about-head p{margin:3px 0 0;font-size:11.5px;color:var(--muted)}
+.about-body{padding:16px 20px 6px;font-size:12.5px;line-height:1.75;color:#c3ccdb}
+.about-body p{margin:0 0 10px}
+.about-body b{color:var(--text)}
+.about-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;
+  background:#1a1f2a;border:1px solid var(--border);margin-bottom:9px;text-decoration:none;
+  color:var(--text);transition:.15s}
+.about-row:hover{background:#222a38;border-color:#33405a}
+.about-row .ic{font-size:15px;flex:0 0 auto;opacity:.85}
+.about-row .tx{flex:1;min-width:0}
+.about-row .tx .t{font-size:12.5px;font-weight:600}
+.about-row .tx .u{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;margin-top:1px}
+.about-row .go{font-size:12px;color:var(--accent);flex:0 0 auto}
+.about-foot{padding:10px 20px 18px;display:flex;gap:8px}
+.about-foot .btn{margin:0;padding:9px}
+.about-note{font-size:11px;color:#6b7a99;line-height:1.6;margin:0 0 10px}
+.about-tag{display:inline-block;background:#252d3c;color:#9fb0cd;border-radius:20px;
+  padding:1px 8px;font-size:10.5px;margin-right:5px}
+
 @media (max-width:900px){
   .app{flex-direction:column}
   .sidebar{order:2;width:100%;flex:0 0 auto;border-right:none;border-top:1px solid var(--border);
@@ -191,6 +229,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
   .sidebar .brand{padding:11px 14px}
   .sidebar .scroll{display:none;flex:1;min-height:0;padding:0 14px 18px}
   .sidebar.open .scroll{display:block;overflow-y:auto}
+  .sidebar-footer{display:none}
+  .sidebar.open .sidebar-footer{display:block;padding:8px 14px 12px}
   .collapse-btn{display:grid;place-items:center}
   .main{order:1;flex:1 1 auto;min-height:0}
   .stage{padding:10px}
@@ -436,6 +476,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
         </div>
       </div>
     </div>
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost" id="aboutBtn" style="margin:0;padding:8px;font-size:12.5px">ℹ️ 关于本项目</button>
+    </div>
   </aside>
 
   <main class="main">
@@ -463,6 +506,39 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
     <div class="bar"><div id="overlayBar"></div></div>
   </div>
 </div>
+
+<!-- 关于弹窗 -->
+<div class="about-overlay hidden" id="aboutOverlay">
+  <div class="about-box">
+    <div class="about-head">
+      <div class="about-logo">🧩</div>
+      <div>
+        <h2>切片拼接还原</h2>
+        <p>Tile · Slice · Merge Tool</p>
+      </div>
+    </div>
+    <div class="about-body">
+      <p>一个纯前端的图片 / 视频切片工具，可将分割后的切片重新拼合还原，也能把长图或视频切成多块并导出配置。</p>
+      <p class="about-note">
+        <span class="about-tag">纯本地</span><span class="about-tag">MD5 校验</span><span class="about-tag">ZIP 打包</span><span class="about-tag">AI 生成</span>
+      </p>
+      <a class="about-row" href="https://github.com/ex386/Tile-Slice-Merge-Tool" target="_blank" rel="noopener noreferrer">
+        <span class="ic">🔗</span>
+        <span class="tx">
+          <span class="t">项目主页 · GitHub</span>
+          <span class="u">github.com/ex386/Tile-Slice-Merge-Tool</span>
+        </span>
+        <span class="go">↗</span>
+      </a>
+      <p class="about-note">本项目代码由 AI 生成，仅供学习与个人使用。请遵守相关平台的服务条款，尊重图片版权。</p>
+    </div>
+    <div class="about-foot">
+      <button class="btn btn-ghost" id="aboutClose">关闭</button>
+      <a class="btn btn-primary" href="https://github.com/ex386/Tile-Slice-Merge-Tool" target="_blank" rel="noopener noreferrer" style="text-decoration:none;margin:0">在 GitHub 打开</a>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -739,6 +815,22 @@ function updateCutLinesSection(){
   $('#cutLinesSection').style.display = show ? '' : 'none';
   if(show) renderCutLines();
 }
+
+/* =========================================================
+ *  关于弹窗
+ * ========================================================= */
+$('#aboutBtn').addEventListener('click', ()=>{
+  $('#aboutOverlay').classList.remove('hidden');
+});
+$('#aboutClose').addEventListener('click', ()=>{
+  $('#aboutOverlay').classList.add('hidden');
+});
+$('#aboutOverlay').addEventListener('click', e=>{
+  if(e.target === $('#aboutOverlay')) $('#aboutOverlay').classList.add('hidden');
+});
+window.addEventListener('keydown', e=>{
+  if(e.key === 'Escape') $('#aboutOverlay').classList.add('hidden');
+});
 
 /* =========================================================
  *  视频帧率检测
