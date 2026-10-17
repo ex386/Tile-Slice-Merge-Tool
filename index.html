@@ -1,0 +1,2958 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>切片拼接还原 · 分割 / 拼接 · 配置 & 自动检测</title>
+<style>
+:root{
+  --bg:#0b0e13; --panel:#141821; --panel2:#1b2029; --border:#262d3a;
+  --text:#e8ecf4; --muted:#8b93a7; --accent:#4f8cff; --accent2:#22c55e; --danger:#ef4444;
+  --amber:#f59e0b; --purple:#8b5cf6;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  overflow:hidden;font-size:13px;}
+.app{display:flex;height:100vh;height:100dvh;}
+
+/* 侧栏 */
+.sidebar{width:356px;flex:0 0 356px;background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;z-index:20;}
+.brand{display:flex;gap:11px;align-items:center;padding:16px 16px 12px;flex:0 0 auto;}
+.logo{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;
+  background:linear-gradient(135deg,#4f8cff,#22c55e);box-shadow:0 4px 18px rgba(79,140,255,.35);
+  flex:0 0 auto;transition:.3s}
+.sidebar[data-work="split"] .logo{background:linear-gradient(135deg,#f59e0b,#ef4444);
+  box-shadow:0 4px 18px rgba(245,158,11,.35)}
+.brand-text{flex:1;min-width:0}
+.brand h1{font-size:14.5px;margin:0;font-weight:600;letter-spacing:.3px}
+.brand p{margin:2px 0 0;font-size:11px;color:var(--muted)}
+.collapse-btn{display:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--border);
+  background:#1c222d;color:#9fb0cd;font-size:15px;cursor:pointer;flex:0 0 auto;transition:transform .28s;}
+.sidebar.open .collapse-btn{transform:rotate(180deg)}
+.scroll{flex:1;overflow-y:auto;padding:0 14px 22px;overscroll-behavior:contain;}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb{background:#2c3444;border-radius:8px}
+
+/* 模式切换 */
+.mode-bar{display:flex;background:#12161f;border-radius:10px;padding:3px;gap:3px;
+  border:1px solid var(--border);margin-bottom:9px}
+.mode-bar button{flex:1;border:none;background:transparent;color:var(--muted);padding:7px 0;
+  border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;transition:.15s;font-weight:600}
+.mode-bar button.active{background:#2b3547;color:#fff}
+.mode-bar.work button[data-work="split"].active{background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff}
+.mode-bar button[data-mode="pro"].active{background:linear-gradient(135deg,#4f8cff,#7c5cff)}
+body:not(.mode-pro) .pro-only{display:none !important}
+
+/* 拖拽区 */
+.drop{border:1.5px dashed #303a4d;border-radius:12px;padding:20px 12px;text-align:center;
+  cursor:pointer;transition:.18s;background:rgba(255,255,255,.012);margin-bottom:14px;}
+.drop:hover{border-color:var(--accent);background:rgba(79,140,255,.06)}
+.drop.over{border-color:var(--accent2);background:rgba(34,197,94,.1);transform:scale(1.01)}
+.drop svg{opacity:.55;margin-bottom:5px}
+.drop p{margin:3px 0;font-size:12.5px;color:var(--muted)}
+.drop p b{color:var(--text)}
+
+.section{margin-bottom:14px}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;
+  font-size:11.5px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.section-head em{font-style:normal;background:#232b39;color:#9fb0cd;border-radius:20px;
+  padding:1px 8px;font-size:10.5px;margin-left:5px;letter-spacing:0}
+.link-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11.5px;padding:2px 4px}
+.link-btn:hover{color:var(--danger)}
+
+.file-list{list-style:none;margin:0;padding:0;max-height:200px;overflow-y:auto;}
+.file-list::-webkit-scrollbar{width:6px}
+.file-list::-webkit-scrollbar-thumb{background:#2c3444;border-radius:8px}
+.file-item{display:flex;align-items:center;gap:9px;padding:6px;border-radius:9px;
+  background:var(--panel2);margin-bottom:6px;border:1px solid transparent;transition:.15s;}
+.file-item:hover{border-color:#33405a}
+.file-item.drag-over{border-color:var(--accent2);background:rgba(34,197,94,.1)}
+.file-item.missing{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.06)}
+.file-item.matched{border-color:rgba(34,197,94,.3)}
+.thumb{width:36px;height:36px;border-radius:7px;overflow:hidden;background:#0d1016;
+  flex:0 0 36px;position:relative;display:grid;place-items:center;font-size:15px;color:#5b6a85}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .idx{position:absolute;left:0;top:0;background:rgba(0,0,0,.68);color:#fff;
+  font-size:9px;padding:0 4px;border-bottom-right-radius:6px;line-height:13px;font-weight:600}
+.meta{flex:1;min-width:0}
+.fname{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fsub{font-size:10.5px;color:var(--muted);margin-top:1px}
+.ops{display:flex;flex-direction:column;gap:1px}
+.ops button{width:19px;height:15px;border:none;background:#252d3c;color:#93a0b8;border-radius:4px;
+  cursor:pointer;font-size:9px;line-height:1;padding:0;display:grid;place-items:center}
+.ops button:hover{background:#33405a;color:#fff}
+.ops button[data-act="del"]:hover{background:var(--danger);color:#fff}
+
+.seg{display:flex;background:#12161f;border-radius:9px;padding:3px;gap:3px;border:1px solid var(--border)}
+.seg button{flex:1;border:none;background:transparent;color:var(--muted);padding:6px 0;
+  border-radius:7px;cursor:pointer;font-size:12px;transition:.15s;font-family:inherit}
+.seg button:hover{color:var(--text)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:0 2px 10px rgba(79,140,255,.35)}
+.seg.amber button.active{background:var(--amber);box-shadow:0 2px 10px rgba(245,158,11,.35)}
+
+.field{display:flex;align-items:center;justify-content:space-between;margin-top:9px;font-size:12px;color:var(--muted);gap:8px}
+.field span{flex:0 0 auto}
+.field input[type=number],.field select{background:#12161f;border:1px solid var(--border);color:var(--text);
+  border-radius:7px;padding:5px 8px;font-size:12px;min-width:96px;font-family:inherit;outline:none;}
+.field input[type=number]:disabled,.field select:disabled{opacity:.45;cursor:not-allowed}
+.field input[type=number]:focus,.field select:focus{border-color:var(--accent)}
+input[type=range]{-webkit-appearance:none;height:4px;background:#252d3c;border-radius:4px;
+  outline:none;width:112px;flex:0 0 auto}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+  background:var(--accent);cursor:pointer;box-shadow:0 0 0 3px rgba(79,140,255,.18)}
+
+.btn{width:100%;padding:10px;border-radius:9px;border:none;cursor:pointer;font-size:13px;
+  font-family:inherit;font-weight:600;transition:.15s;display:flex;align-items:center;
+  justify-content:center;gap:6px;margin-top:8px;}
+.btn-primary{background:linear-gradient(135deg,#4f8cff,#3b6fe0);color:#fff;box-shadow:0 4px 16px rgba(79,140,255,.3)}
+.btn-primary:hover{filter:brightness(1.12)}
+.btn-ghost{background:#1e2531;color:#c3ccdb;border:1px solid var(--border)}
+.btn-ghost:hover{background:#27303f}
+.btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.25)}
+.btn-green:hover{filter:brightness(1.1)}
+.btn-amber{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 4px 16px rgba(245,158,11,.25)}
+.btn-amber:hover{filter:brightness(1.1)}
+.btn-purple{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;box-shadow:0 4px 16px rgba(139,92,246,.25)}
+.btn-purple:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none!important}
+.hint-text{font-size:11px;color:#6b7a99;margin:6px 0 0;line-height:1.6}
+
+/* 配置卡片 */
+.config-card{background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(79,140,255,.08));
+  border:1px solid rgba(139,92,246,.35);border-radius:10px;padding:11px 12px;margin-top:8px;}
+.config-card .ct{font-size:12px;font-weight:600;color:#c4b5fd;margin-bottom:4px}
+.config-card .cd{font-size:11px;color:#8b93a7;line-height:1.6;word-break:break-all}
+.config-card .cd b{color:#e8ecf4}
+
+/* 切割线列表 */
+.cut-item{background:#1a1f2a;border-radius:7px;margin-bottom:5px;border:1px solid var(--border);overflow:hidden;}
+.cut-item-head{display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer;font-size:11.5px;}
+.cut-badge{background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;}
+.cut-badge.h{background:var(--amber)}
+.cut-info{flex:1;color:#c3ccdb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cut-expand{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 4px}
+.cut-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 5px}
+.cut-del:hover{color:var(--danger)}
+.cut-item-body{padding:0 8px 8px;border-top:1px solid var(--border);background:rgba(0,0,0,.15)}
+.cut-field{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px}
+.cut-field label{width:40px;color:var(--muted);flex:0 0 auto}
+.cut-input{flex:1;background:#0d1017;border:1px solid var(--border);color:var(--text);
+  border-radius:5px;padding:3px 6px;font-size:11px;font-family:inherit;min-width:0;outline:none;}
+.cut-input:focus{border-color:var(--accent)}
+.cut-unit{background:#252d3c;border:none;color:#93a0b8;border-radius:5px;padding:3px 8px;
+  font-size:10.5px;cursor:pointer;font-family:inherit;flex:0 0 auto;}
+.cut-unit:hover{background:#33405a;color:#fff}
+.cut-add-row{display:flex;gap:6px;margin-top:8px}
+
+/* 主区域 */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;min-height:0}
+.toolbar{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;
+  border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;flex:0 0 auto}
+.pill{background:var(--panel2);border:1px solid var(--border);border-radius:20px;
+  padding:4px 12px;font-size:11.5px;color:var(--muted);margin-right:7px;display:inline-block}
+.pill b{color:var(--text);font-weight:600}
+.hint{font-size:11.5px;color:#5c677d;display:inline-flex;align-items:center;gap:5px}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;
+  background:repeating-conic-gradient(#12161f 0% 25%, #0d1017 0% 50%) 50% / 22px 22px;
+  position:relative;min-height:0;}
+#canvas{max-width:100%;max-height:100%;display:block;border-radius:5px;
+  box-shadow:0 10px 50px rgba(0,0,0,.65);touch-action:none;cursor:default}
+.empty{position:absolute;color:#4b5670;font-size:13.5px;text-align:center;pointer-events:none;line-height:2}
+.empty span{font-size:40px;display:block;opacity:.5}
+
+/* 遮罩 */
+.overlay{position:fixed;inset:0;background:rgba(6,9,14,.84);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;z-index:99;transition:.2s;padding:20px}
+.overlay.hidden{opacity:0;pointer-events:none}
+.overlay-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:26px 30px;text-align:center;width:min(340px,100%);box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.spinner{width:34px;height:34px;border:3px solid #2a3242;border-top-color:var(--accent);
+  border-radius:50%;margin:0 auto 14px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#overlayText{font-size:13px;color:var(--text);margin:0 0 12px}
+.bar{height:5px;background:#232b39;border-radius:4px;overflow:hidden}
+#overlayBar{height:100%;width:0;background:linear-gradient(90deg,#4f8cff,#22c55e);
+  border-radius:4px;transition:width .12s}
+#toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,20px);background:#232b39;
+  color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;
+  transition:.25s;z-index:200;border:1px solid #33405a;box-shadow:0 8px 30px rgba(0,0,0,.5);
+  max-width:88vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:900px){
+  .app{flex-direction:column}
+  .sidebar{order:2;width:100%;flex:0 0 auto;border-right:none;border-top:1px solid var(--border);
+    max-height:58px;transition:max-height .3s cubic-bezier(.4,0,.2,1);overflow:hidden;
+    border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -8px 30px rgba(0,0,0,.4);}
+  .sidebar.open{max-height:66vh}
+  .sidebar .brand{padding:11px 14px}
+  .sidebar .scroll{display:none;flex:1;min-height:0;padding:0 14px 18px}
+  .sidebar.open .scroll{display:block;overflow-y:auto}
+  .collapse-btn{display:grid;place-items:center}
+  .main{order:1;flex:1 1 auto;min-height:0}
+  .stage{padding:10px}
+  .toolbar{padding:9px 12px;gap:6px}
+  .pill{font-size:11px;padding:3px 10px;margin-right:5px}
+  .hint{display:none}
+  .file-list{max-height:140px}
+}
+@media (max-width:480px){
+  .brand h1{font-size:13.5px}
+  .brand p{font-size:10.5px}
+  .stage{padding:6px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-work="merge">
+    <div class="brand" id="brandRow">
+      <div class="logo" id="logoIcon">🧩</div>
+      <div class="brand-text">
+        <h1 id="brandTitle">切片拼接还原</h1>
+        <p id="brandSub">图片 / 视频分块 · 合成或分割</p>
+      </div>
+      <button class="collapse-btn" id="collapseBtn" title="展开/收起设置">⌃</button>
+    </div>
+    <div class="scroll">
+      <div class="mode-bar work" id="workBar">
+        <button data-work="merge" class="active">🧩 拼接还原</button>
+        <button data-work="split">✂️ 分割切片</button>
+      </div>
+      <div class="mode-bar" id="modeBar">
+        <button data-mode="simple" class="active">🙂 简单模式</button>
+        <button data-mode="pro">⚙️ 专业模式</button>
+      </div>
+
+      <!-- 拼接面板 -->
+      <div id="mergePanel">
+        <div class="drop" id="drop">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M12 16V4m0 0L8 8m4-4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 15v3a3 3 0 003 3h12a3 3 0 003-3v-3" stroke-linecap="round"/>
+          </svg>
+          <p><b>拖拽</b> 图片 / 视频到这里</p>
+          <p>或点击选择文件（支持多选）</p>
+          <input type="file" id="fileInput" multiple accept="image/*,video/*" hidden>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><span>从配置还原</span></div>
+          <button class="btn btn-purple" id="importConfigBtn">📂 导入配置 ZIP / JSON</button>
+          <input type="file" id="importConfigInput" accept=".zip,.json" hidden>
+          <div id="configStatus" style="display:none"></div>
+        </div>
+
+        <div class="section" id="fileListSection">
+          <div class="section-head">
+            <span>素材顺序 <em id="count">0</em></span>
+            <button class="link-btn" id="clearBtn">清空</button>
+          </div>
+          <ul class="file-list" id="list"></ul>
+        </div>
+
+        <div class="section" id="layoutSection">
+          <div class="section-head"><span>排列方式</span></div>
+          <div class="seg" id="layoutSeg">
+            <button data-layout="grid" class="active">九宫格</button>
+            <button data-layout="row">横向</button>
+            <button data-layout="col">竖向</button>
+          </div>
+          <div class="field" id="colsField">
+            <span>每行数量</span>
+            <input type="number" id="colsInput" min="1" max="32" value="3">
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><span>导出图片</span></div>
+          <div class="pro-only">
+            <div class="field">
+              <span>格式</span>
+              <select id="imgFormat">
+                <option value="png">PNG · 原图无损</option>
+                <option value="jpeg">JPEG · 压缩</option>
+                <option value="webp">WebP · 压缩</option>
+              </select>
+            </div>
+            <div class="field" id="qualityField" style="display:none">
+              <span>压缩质量</span>
+              <input type="range" id="imgQuality" min="10" max="100" value="82">
+            </div>
+            <div class="field">
+              <span>输出缩放</span>
+              <select id="imgScale">
+                <option value="100">100% 原尺寸</option>
+                <option value="50">50%</option>
+                <option value="75">75%</option>
+                <option value="150">150%</option>
+                <option value="200">200%</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" id="exportImg">⬇ 保存图片</button>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><span>导出视频 / GIF</span></div>
+          <div class="pro-only">
+            <div class="field">
+              <span>GIF 帧率</span>
+              <select id="gifFps">
+                <option value="auto" selected>自动（匹配视频）</option>
+                <option value="8">8 fps</option>
+                <option value="10">10 fps</option>
+                <option value="12">12 fps</option>
+                <option value="15">15 fps</option>
+                <option value="20">20 fps</option>
+                <option value="24">24 fps</option>
+                <option value="30">30 fps</option>
+              </select>
+            </div>
+            <div class="field">
+              <span>GIF 宽度</span>
+              <select id="gifWidth">
+                <option value="240">240 px</option>
+                <option value="320">320 px</option>
+                <option value="480" selected>480 px</option>
+                <option value="640">640 px</option>
+                <option value="960">960 px</option>
+              </select>
+            </div>
+            <div class="field">
+              <span>GIF 调色板</span>
+              <select id="gifPalette">
+                <option value="64">64 色（更小）</option>
+                <option value="128">128 色</option>
+                <option value="256" selected>256 色（更好）</option>
+              </select>
+            </div>
+            <div class="field">
+              <span>视频码率</span>
+              <select id="videoBitrate">
+                <option value="auto" selected>自动</option>
+                <option value="2000000">2 Mbps</option>
+                <option value="5000000">5 Mbps</option>
+                <option value="10000000">10 Mbps</option>
+                <option value="20000000">20 Mbps</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-green" id="exportGif">🎞 保存 GIF</button>
+          <button class="btn btn-ghost" id="exportVideo">🎬 保存视频 (WebM)</button>
+        </div>
+      </div>
+
+      <!-- 分割面板 -->
+      <div id="splitPanel" style="display:none">
+        <div class="drop" id="splitDrop">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M4 4l16 16M20 4L4 20" stroke-linecap="round"/>
+          </svg>
+          <p><b>拖拽</b> 一张图片或视频</p>
+          <p>或点击选择文件，用于分割</p>
+          <input type="file" id="splitFileInput" accept="image/*,video/*" hidden>
+        </div>
+
+        <div class="section" id="splitItemSection" style="display:none">
+          <div class="section-head">
+            <span>当前素材</span>
+            <button class="link-btn" id="splitClearBtn">移除</button>
+          </div>
+          <div id="splitItemInfo"></div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><span>分割方式</span></div>
+          <div class="seg" id="splitLayoutSeg">
+            <button data-sl="grid" class="active">九宫格</button>
+            <button data-sl="rows">横切</button>
+            <button data-sl="cols">竖切</button>
+          </div>
+          <div class="field">
+            <span>行数</span>
+            <input type="number" id="splitRows" min="1" max="32" value="3">
+          </div>
+          <div class="field">
+            <span>列数</span>
+            <input type="number" id="splitCols" min="1" max="32" value="3">
+          </div>
+          <div class="pro-only">
+            <div class="section-head" style="margin-top:14px"><span>切割精度</span></div>
+            <div class="seg amber" id="splitCutModeSeg">
+              <button data-cm="even" class="active">均分</button>
+              <button data-cm="custom">自定义位置</button>
+            </div>
+            <button class="btn btn-ghost" id="autoDetectBtn" style="margin-top:6px">🔍 自动检测视频变化区域</button>
+            <p class="hint-text" id="customHint" style="display:none">拖动画面中的黄色分割线调整位置，或在下方列表中精确输入（支持 px/% 单位）</p>
+            <button class="btn btn-ghost" id="resetCutsBtn" style="display:none">↺ 重置为均分</button>
+          </div>
+          <div class="field pro-only">
+            <span>显示分割线</span>
+            <select id="splitShowLines">
+              <option value="1" selected>显示</option>
+              <option value="0">隐藏</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 切割线列表 -->
+        <div class="section pro-only" id="cutLinesSection" style="display:none">
+          <div class="section-head">
+            <span>切割线 <em id="cutLineCount">0</em></span>
+          </div>
+          <div id="cutLinesList"></div>
+          <div class="cut-add-row">
+            <button class="btn btn-ghost" id="addVLineBtn" style="flex:1;margin:0;font-size:12px;padding:7px">+ 竖线</button>
+            <button class="btn btn-ghost" id="addHLineBtn" style="flex:1;margin:0;font-size:12px;padding:7px">+ 横线</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head"><span>导出切片（含配置）</span></div>
+          <div class="pro-only">
+            <div class="field">
+              <span>图片格式</span>
+              <select id="splitImgFormat">
+                <option value="png">PNG 无损</option>
+                <option value="jpeg">JPEG 压缩</option>
+                <option value="webp">WebP 压缩</option>
+              </select>
+            </div>
+            <div class="field" id="splitQualityField" style="display:none">
+              <span>质量</span>
+              <input type="range" id="splitImgQuality" min="10" max="100" value="85">
+            </div>
+          </div>
+          <p class="hint-text">导出 ZIP 包含全部切片 + config.json（含 MD5），可用于拼接还原</p>
+          <button class="btn btn-amber" id="splitExportImg">⬇ 导出图片切片 + 配置 (ZIP)</button>
+          <button class="btn btn-green" id="splitExportVideo">🎬 导出视频切片 + 配置 (ZIP)</button>
+          <button class="btn btn-ghost" id="splitExportGif">🎞 导出 GIF 切片 (ZIP)</button>
+          <button class="btn btn-ghost" id="splitExportConfigOnly">📄 仅导出配置 JSON</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <div>
+        <span class="pill" id="infoSize">—</span>
+        <span class="pill" id="infoGrid">—</span>
+        <span class="hint" id="hintText"></span>
+      </div>
+      <div>
+        <button class="btn btn-ghost" id="playBtn" style="width:auto;padding:7px 16px;margin:0">⏸ 暂停</button>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="canvas" width="600" height="400"></canvas>
+      <div class="empty" id="empty"><span>🧩</span>拖入切片素材开始拼接</div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-box">
+    <div class="spinner"></div>
+    <p id="overlayText">处理中…</p>
+    <div class="bar"><div id="overlayBar"></div></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* =========================================================
+ *  基础
+ * ========================================================= */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const canvas = $('#canvas');
+const ctx = canvas.getContext('2d');
+
+const state = {
+  items: [],
+  layout: 'grid',
+  cols: 3,
+  manualOrder: false,
+  playing: true,
+  mode: 'simple',
+  detectedFps: 30,
+  fpsDetected: false,
+  workMode: 'merge',
+  mergeConfig: null,
+  configZipFiles: null,
+  split: {
+    item: null,
+    layout: 'grid',
+    rows: 3,
+    cols: 3,
+    showLines: true,
+    cutMode: 'even',
+    vLines: [],
+    hLines: [],
+  }
+};
+let uid = 0;
+let dragIdx = null;
+let rafId = null;
+const drag = { active:false, from:-1, over:-1, pointerId:null };
+const cutDrag = { active:false, axis:null, index:-1, pointerId:null };
+
+/* =========================================================
+ *  工具
+ * ========================================================= */
+let toastTimer;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function showOverlay(text, pct=0){
+  $('#overlay').classList.remove('hidden');
+  $('#overlayText').textContent = text;
+  $('#overlayBar').style.width = (pct*100)+'%';
+}
+function updateOverlay(text, pct){
+  if(text) $('#overlayText').textContent = text;
+  if(pct !== undefined) $('#overlayBar').style.width = Math.max(0,Math.min(1,pct))*100+'%';
+}
+function hideOverlay(){ $('#overlay').classList.add('hidden'); }
+function download(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 12000);
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =========================================================
+ *  MD5
+ * ========================================================= */
+const MD5 = (()=>{
+  const K = new Int32Array([
+    0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+    0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+    0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+    0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+    0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+    0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+    0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+    0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
+  ]);
+  const S = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+             5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+             4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+             6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+  return function(input){
+    let bytes;
+    if(typeof input === 'string') bytes = new TextEncoder().encode(input);
+    else if(input instanceof ArrayBuffer) bytes = new Uint8Array(input);
+    else bytes = input;
+    const len = bytes.length;
+    const bitLen = len * 8;
+    const newLen = (((len + 8) >> 6) + 1) << 6;
+    const padded = new Uint8Array(newLen);
+    padded.set(bytes);
+    padded[len] = 0x80;
+    const pdv = new DataView(padded.buffer);
+    pdv.setUint32(newLen - 8, bitLen >>> 0, true);
+    pdv.setUint32(newLen - 4, Math.floor(bitLen / 0x100000000), true);
+    let a0 = 0x67452301, b0 = 0xefcdab89|0, c0 = 0x98badcfe|0, d0 = 0x10325476;
+    const M = new Int32Array(padded.buffer, 0, newLen >> 2);
+    for(let offset = 0; offset < newLen; offset += 64){
+      const bs = offset >> 2;
+      let A=a0, B=b0, C=c0, D=d0;
+      for(let i=0;i<64;i++){
+        let F,g;
+        if(i<16){ F=(B&C)|(~B&D); g=i; }
+        else if(i<32){ F=(D&B)|(~D&C); g=(5*i+1)&15; }
+        else if(i<48){ F=B^C^D; g=(3*i+5)&15; }
+        else { F=C^(B|~D); g=(7*i)&15; }
+        const sum = (A+F+K[i]+M[bs+g])|0;
+        A=D; D=C; C=B;
+        const r=S[i];
+        B = (B + ((sum<<r)|(sum>>>(32-r))))|0;
+      }
+      a0=(a0+A)|0; b0=(b0+B)|0; c0=(c0+C)|0; d0=(d0+D)|0;
+    }
+    const out = new Uint8Array(16);
+    const odv = new DataView(out.buffer);
+    odv.setInt32(0,a0,true); odv.setInt32(4,b0,true); odv.setInt32(8,c0,true); odv.setInt32(12,d0,true);
+    let hex='';
+    for(let i=0;i<16;i++) hex += out[i].toString(16).padStart(2,'0');
+    return hex;
+  };
+})();
+
+/* =========================================================
+ *  ZIP 打包 / 解析
+ * ========================================================= */
+const CRC_TABLE = (()=>{
+  const t = new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; }
+  return t;
+})();
+function crc32(u8){
+  let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++) c = CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+function buildZip(files){
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let localOffset = 0;
+  const now = new Date();
+  const dosTime = ((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1))&0xFFFF;
+  const dosDate = (((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate())&0xFFFF;
+  for(const f of files){
+    const nameBytes = enc.encode(f.name);
+    const data = f.data;
+    const crc = crc32(data);
+    const size = data.length;
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 0x0800, true);
+    dv.setUint16(8, 0, true);
+    dv.setUint16(10, dosTime, true);
+    dv.setUint16(12, dosDate, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, size, true);
+    dv.setUint32(22, size, true);
+    dv.setUint16(26, nameBytes.length, true);
+    dv.setUint16(28, 0, true);
+    lh.set(nameBytes, 30);
+    const ch = new Uint8Array(46 + nameBytes.length);
+    const cdv = new DataView(ch.buffer);
+    cdv.setUint32(0, 0x02014b50, true);
+    cdv.setUint16(4, 20, true);
+    cdv.setUint16(6, 20, true);
+    cdv.setUint16(8, 0x0800, true);
+    cdv.setUint16(10, 0, true);
+    cdv.setUint16(12, dosTime, true);
+    cdv.setUint16(14, dosDate, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, size, true);
+    cdv.setUint32(24, size, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint16(30, 0, true); cdv.setUint16(32, 0, true); cdv.setUint16(34, 0, true);
+    cdv.setUint16(36, 0, true);
+    cdv.setUint32(38, 0, true);
+    cdv.setUint32(42, localOffset, true);
+    ch.set(nameBytes, 46);
+    parts.push(lh, data);
+    central.push(ch);
+    localOffset += lh.length + size;
+  }
+  let cdSize = 0;
+  for(const c of central) cdSize += c.length;
+  const eocd = new Uint8Array(22);
+  const edv = new DataView(eocd.buffer);
+  edv.setUint32(0, 0x06054b50, true);
+  edv.setUint16(4, 0, true); edv.setUint16(6, 0, true);
+  edv.setUint16(8, files.length, true);
+  edv.setUint16(10, files.length, true);
+  edv.setUint32(12, cdSize, true);
+  edv.setUint32(16, localOffset, true);
+  edv.setUint16(20, 0, true);
+  return new Blob([...parts, ...central, eocd], { type: 'application/zip' });
+}
+function unzipStore(arrayBuffer){
+  const u8 = new Uint8Array(arrayBuffer);
+  const dv = new DataView(arrayBuffer);
+  const files = [];
+  let offset = 0;
+  const decoder = new TextDecoder('utf-8');
+  while(offset + 30 <= u8.length){
+    const sig = dv.getUint32(offset, true);
+    if(sig === 0x02014b50) break;
+    if(sig !== 0x04034b50) break;
+    const method = dv.getUint16(offset + 8, true);
+    const csize = dv.getUint32(offset + 18, true);
+    const namelen = dv.getUint16(offset + 26, true);
+    const extralen = dv.getUint16(offset + 28, true);
+    const nameBytes = u8.slice(offset + 30, offset + 30 + namelen);
+    const name = decoder.decode(nameBytes);
+    const dataStart = offset + 30 + namelen + extralen;
+    const data = u8.slice(dataStart, dataStart + csize);
+    files.push({ name, data, compressed: method !== 0 });
+    offset = dataStart + csize;
+  }
+  return files;
+}
+
+/* =========================================================
+ *  模式切换
+ * ========================================================= */
+$('#modeBar').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-mode]');
+  if(!btn) return;
+  $$('#modeBar button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.mode = btn.dataset.mode;
+  document.body.classList.toggle('mode-pro', state.mode === 'pro');
+  if(state.mode === 'pro'){
+    updateCutLinesSection();
+  }else{
+    $('#cutLinesSection').style.display = 'none';
+  }
+  toast(state.mode === 'pro' ? '专业模式：展开更多选项' : '简单模式：核心功能');
+});
+
+$('#workBar').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-work]');
+  if(!btn) return;
+  setWorkMode(btn.dataset.work);
+});
+
+function setWorkMode(m){
+  if(state.workMode === m) return;
+  state.workMode = m;
+  $('#sidebar').dataset.work = m;
+  $$('#workBar button').forEach(b=>b.classList.toggle('active', b.dataset.work === m));
+  $('#mergePanel').style.display = m === 'merge' ? '' : 'none';
+  $('#splitPanel').style.display = m === 'split' ? '' : 'none';
+  $('#logoIcon').textContent = m === 'split' ? '✂️' : '🧩';
+  $('#brandTitle').textContent = m === 'split' ? '分割切片工具' : '切片拼接还原';
+  $('#brandSub').textContent = m === 'split' ? '一张图 / 视频 · 切成多块' : '图片 / 视频分块 · 合成原图';
+  syncPlayback();
+  drawComposite();
+  if(m === 'split') updateCutLinesSection();
+}
+
+function updateCutLinesSection(){
+  const show = state.workMode === 'split' && state.mode === 'pro' && state.split.cutMode === 'custom';
+  $('#cutLinesSection').style.display = show ? '' : 'none';
+  if(show) renderCutLines();
+}
+
+/* =========================================================
+ *  视频帧率检测
+ * ========================================================= */
+async function detectVideoFps(video){
+  const FALLBACK = 30;
+  if(!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return FALLBACK;
+  const wasMuted = video.muted;
+  const wasTime = video.currentTime;
+  const wasPaused = video.paused;
+  const samples = [];
+  let cbId = null;
+  try{
+    video.muted = true;
+    if(video.readyState < 2){
+      await new Promise(res=>{
+        let fin = false;
+        const done = ()=>{ if(fin) return; fin = true; res(); };
+        video.addEventListener('loadeddata', done, {once:true});
+        setTimeout(done, 1500);
+      });
+    }
+    try{ video.currentTime = Math.min(0.1, (video.duration||1)*0.1); }catch(_){}
+    await sleep(90);
+    const t0 = performance.now();
+    const onFrame = (now, meta)=>{
+      samples.push(meta.mediaTime);
+      if(performance.now() - t0 < 600 && samples.length < 120){
+        cbId = video.requestVideoFrameCallback(onFrame);
+      }
+    };
+    video.play().catch(()=>{});
+    cbId = video.requestVideoFrameCallback(onFrame);
+    await sleep(720);
+    video.pause();
+  }catch(e){}
+  finally{
+    if(cbId && video.cancelVideoFrameCallback){
+      try{ video.cancelVideoFrameCallback(cbId); }catch(_){}
+    }
+    video.muted = wasMuted;
+    try{ video.currentTime = wasTime; }catch(_){}
+    if(!wasPaused) video.play().catch(()=>{});
+  }
+  if(samples.length < 4) return FALLBACK;
+  const dt = samples[samples.length - 1] - samples[0];
+  if(!(dt > 0)) return FALLBACK;
+  const fps = (samples.length - 1) / dt;
+  const common = [23.976, 24, 25, 30, 50, 60];
+  let best = FALLBACK, bestDiff = Infinity;
+  for(const c of common){ const d = Math.abs(c - fps); if(d < bestDiff){ bestDiff = d; best = c; } }
+  return (bestDiff < 3) ? Math.round(best) : Math.max(1, Math.round(fps));
+}
+function updateFpsLabel(){
+  const opt = document.querySelector('#gifFps option[value="auto"]');
+  if(opt) opt.textContent = `自动（匹配视频 ${state.detectedFps} fps）`;
+}
+updateFpsLabel();
+
+/* =========================================================
+ *  视频 seek
+ * ========================================================= */
+function seekVideo(v, t){
+  return new Promise(res=>{
+    let finished = false;
+    const fin = ()=>{
+      if(finished) return;
+      finished = true;
+      v.removeEventListener('seeked', fin);
+      requestAnimationFrame(()=> requestAnimationFrame(res));
+    };
+    try{
+      if(Math.abs(v.currentTime - t) < 0.002 && v.readyState >= 2){
+        requestAnimationFrame(()=>res());
+        return;
+      }
+      v.addEventListener('seeked', fin, { once:false });
+      v.currentTime = t;
+    }catch(e){ fin(); return; }
+    setTimeout(fin, 3000);
+  });
+}
+
+/* =========================================================
+ *  拼接：文件导入
+ * ========================================================= */
+async function addFiles(fileList){
+  const files = [...fileList].filter(f =>
+    f.type.startsWith('image/') || f.type.startsWith('video/') ||
+    /\.(png|jpe?g|gif|webp|bmp|avif|mp4|webm|mov|m4v|mkv)$/i.test(f.name)
+  );
+  if(!files.length){ toast('未识别到图片或视频文件'); return; }
+  showOverlay('正在读取素材…', 0.08);
+  let done = 0;
+  for(const file of files){
+    const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name);
+    try{
+      if(!isVideo){
+        const img = new Image();
+        await new Promise((res, rej)=>{ img.onload = res; img.onerror = rej; img.src = url; });
+        state.items.push({
+          id: ++uid, type:'image', name:file.name, url, el:img,
+          w: img.naturalWidth || 1, h: img.naturalHeight || 1
+        });
+      }else{
+        const v = document.createElement('video');
+        v.src = url; v.muted = true; v.loop = true; v.playsInline = true;
+        v.preload = 'auto'; v.crossOrigin = 'anonymous';
+        await new Promise(res=>{
+          let ok = false;
+          const fin = ()=>{ if(!ok){ ok = true; res(); } };
+          v.onloadedmetadata = fin; v.onloadeddata = fin; v.onerror = fin;
+          setTimeout(fin, 6000);
+        });
+        state.items.push({
+          id: ++uid, type:'video', name:file.name, url, el:v,
+          w: v.videoWidth || 640, h: v.videoHeight || 360
+        });
+      }
+    }catch(e){
+      console.warn('加载失败', file.name, e);
+      toast('无法读取：' + file.name);
+    }
+    done++;
+    updateOverlay('正在读取素材…', 0.08 + done / files.length * 0.72);
+  }
+  if(!state.fpsDetected){
+    const firstVideo = state.items.find(i=>i.type === 'video');
+    if(firstVideo){
+      updateOverlay('正在检测视频帧率…', 0.88);
+      state.detectedFps = await detectVideoFps(firstVideo.el);
+      state.fpsDetected = true;
+      updateFpsLabel();
+    }
+  }
+  if(!state.manualOrder && !state.mergeConfig) sortItems();
+  if(state.mergeConfig) matchTilesToItems();
+  hideOverlay();
+  refresh();
+  if(state.items.some(i=>i.type === 'video')) playVideos();
+}
+function sortItems(){
+  state.items.sort((a,b)=> a.name.localeCompare(b.name, 'zh-Hans-CN', {numeric:true, sensitivity:'base'}));
+}
+
+/* =========================================================
+ *  拼接：网格布局
+ * ========================================================= */
+function computeLayout(){
+  const n = state.items.length;
+  if(!n) return { n:0, cols:1, rows:1, cellW:300, cellH:200 };
+  let cols, rows;
+  if(state.layout === 'row'){ cols = n; rows = 1; }
+  else if(state.layout === 'col'){ cols = 1; rows = n; }
+  else{ cols = Math.max(1, Math.min(state.cols, 64)); rows = Math.ceil(n / cols); }
+  let cw = 1, ch = 1;
+  for(const it of state.items){ cw = Math.max(cw, it.w || 1); ch = Math.max(ch, it.h || 1); }
+  return { n, cols, rows, cellW: Math.round(cw), cellH: Math.round(ch) };
+}
+function cellRect(idx, L){
+  const c = idx % L.cols;
+  const r = Math.floor(idx / L.cols);
+  return { x: c * L.cellW, y: r * L.cellH, w: L.cellW, h: L.cellH };
+}
+
+/* =========================================================
+ *  渲染主入口
+ * ========================================================= */
+function drawComposite(){
+  if(state.workMode === 'split'){ drawSplit(); return; }
+  if(state.mergeConfig){ drawMergeWithConfig(); return; }
+  drawMerge();
+}
+function setEmpty(icon, text){
+  const el = $('#empty');
+  if(el.dataset.state !== icon + text){
+    el.dataset.state = icon + text;
+    el.innerHTML = `<span>${icon}</span>${text}`;
+  }
+}
+function drawMerge(){
+  const L = computeLayout();
+  const w = L.n ? L.cols * L.cellW : 600;
+  const h = L.n ? L.rows * L.cellH : 400;
+  if(canvas.width !== w) canvas.width = w;
+  if(canvas.height !== h) canvas.height = h;
+  $('#empty').style.display = L.n ? 'none' : 'block';
+  if(!L.n) setEmpty('🧩', '拖入切片素材开始拼接');
+  if(!L.n){
+    ctx.fillStyle = '#12161f';
+    ctx.fillRect(0, 0, w, h);
+    $('#infoSize').textContent = '—';
+    $('#infoGrid').textContent = '—';
+    $('#hintText').textContent = '';
+    return;
+  }
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  state.items.forEach((it, i)=>{
+    const { x, y, w: cw, h: ch } = cellRect(i, L);
+    try{
+      if(it.type === 'image') ctx.drawImage(it.el, x, y, cw, ch);
+      else if(it.el.readyState >= 2) ctx.drawImage(it.el, x, y, cw, ch);
+    }catch(e){}
+  });
+  if(drag.active && drag.from >= 0 && drag.from < L.n){
+    const r = cellRect(drag.from, L);
+    ctx.save(); ctx.globalAlpha = 0.42; ctx.fillStyle = '#0b0e13';
+    ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#4f8cff';
+    ctx.lineWidth = Math.max(2, r.w * 0.006); ctx.setLineDash([10, 7]);
+    ctx.strokeRect(r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3); ctx.restore();
+  }
+  if(drag.active && drag.over >= 0 && drag.over !== drag.from && drag.over < L.n){
+    const r = cellRect(drag.over, L);
+    ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = '#22c55e';
+    ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
+    ctx.save(); ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = Math.max(2.5, r.w * 0.008);
+    ctx.strokeRect(r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3); ctx.restore();
+  }
+  $('#infoSize').textContent = `输出尺寸 ${w} × ${h}`;
+  $('#infoGrid').textContent = `${L.cols} 列 × ${L.rows} 行 · 共 ${L.n} 块`;
+  $('#hintText').textContent = '拖动画面中的分块可调整顺序';
+}
+function drawMergeWithConfig(){
+  const cfg = state.mergeConfig;
+  const w = cfg.source.width;
+  const h = cfg.source.height;
+  if(canvas.width !== w) canvas.width = w;
+  if(canvas.height !== h) canvas.height = h;
+  ctx.fillStyle = '#0d1017';
+  ctx.fillRect(0, 0, w, h);
+
+  // 辅助线
+  ctx.save();
+  ctx.strokeStyle = 'rgba(139,92,246,.18)';
+  ctx.lineWidth = 1;
+  if(cfg.split && cfg.split.vLines){
+    for(const vl of cfg.split.vLines){
+      const x = vl.x * w;
+      const y1 = (vl.y1 !== undefined ? vl.y1 : 0) * h;
+      const y2 = (vl.y2 !== undefined ? vl.y2 : 1) * h;
+      ctx.beginPath(); ctx.moveTo(x + .5, y1); ctx.lineTo(x + .5, y2); ctx.stroke();
+    }
+  }else if(cfg.split && cfg.split.xs){
+    for(let i = 1; i < cfg.split.xs.length - 1; i++){
+      const x = cfg.split.xs[i] * w;
+      ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, h); ctx.stroke();
+    }
+  }
+  if(cfg.split && cfg.split.hLines){
+    for(const hl of cfg.split.hLines){
+      const y = hl.y * h;
+      const x1 = (hl.x1 !== undefined ? hl.x1 : 0) * w;
+      const x2 = (hl.x2 !== undefined ? hl.x2 : 1) * w;
+      ctx.beginPath(); ctx.moveTo(x1, y + .5); ctx.lineTo(x2, y + .5); ctx.stroke();
+    }
+  }else if(cfg.split && cfg.split.ys){
+    for(let i = 1; i < cfg.split.ys.length - 1; i++){
+      const y = cfg.split.ys[i] * h;
+      ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(w, y + .5); ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  let loaded = 0;
+  const matched = new Set();
+  state.items.forEach(it=>{
+    if(!it.pos) return;
+    try{
+      if(it.type === 'image') ctx.drawImage(it.el, it.pos.x, it.pos.y, it.pos.w, it.pos.h);
+      else if(it.el.readyState >= 2) ctx.drawImage(it.el, it.pos.x, it.pos.y, it.pos.w, it.pos.h);
+      loaded++;
+      matched.add(it.pos.index !== undefined ? it.pos.index : (it.pos.r + ',' + it.pos.c));
+    }catch(e){}
+  });
+  cfg.tiles.forEach((t, idx)=>{
+    const key = (t.index !== undefined) ? t.index : (t.r + ',' + t.c);
+    if(matched.has(key)) return;
+    const x = t.x, y = t.y, tw = t.w, th = t.h;
+    ctx.save();
+    ctx.fillStyle = 'rgba(239,68,68,.12)';
+    ctx.fillRect(x, y, tw, th);
+    ctx.strokeStyle = 'rgba(239,68,68,.45)';
+    ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, tw - 2, th - 2);
+    ctx.restore();
+    ctx.save();
+    ctx.fillStyle = 'rgba(239,68,68,.7)';
+    const fs = Math.max(11, Math.min(tw, th) * 0.14);
+    ctx.font = `600 ${fs}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('缺失 #' + (idx + 1), x + tw / 2, y + th / 2);
+    ctx.restore();
+  });
+  $('#empty').style.display = 'none';
+  $('#infoSize').textContent = `原尺寸 ${w} × ${h}`;
+  $('#infoGrid').textContent = `配置模式 · ${loaded}/${cfg.tiles.length} 分片`;
+  $('#hintText').textContent = loaded < cfg.tiles.length ? '拖入缺失的分片可自动匹配' : '全部匹配完成';
+  if(loaded === 0){
+    $('#empty').style.display = 'block';
+    setEmpty('📋', '已加载配置，请拖入分片或导入 ZIP');
+  }
+}
+
+/* =========================================================
+ *  切割线核心（数据 + 算法）
+ * ========================================================= */
+/* 归一化当前切割线 */
+function getCurrentLines(){
+  if(state.split.cutMode === 'even'){
+    const rows = state.split.layout === 'cols' ? 1 : state.split.rows;
+    const cols = state.split.layout === 'rows' ? 1 : state.split.cols;
+    const vLines = [];
+    for(let i = 1; i < cols; i++) vLines.push({ x: i / cols, y1: 0, y2: 1 });
+    const hLines = [];
+    for(let i = 1; i < rows; i++) hLines.push({ y: i / rows, x1: 0, x2: 1 });
+    return { vLines, hLines };
+  }
+  return { vLines: state.split.vLines, hLines: state.split.hLines };
+}
+
+/* 递归切割算法：返回像素矩形列表 */
+function cutRect(rect, vLines, hLines){
+  const x2 = rect.x + rect.w;
+  const y2 = rect.y + rect.h;
+  // 尝试竖线
+  for(let i = 0; i < vLines.length; i++){
+    const vl = vLines[i];
+    if(vl.x > rect.x + 0.5 && vl.x < x2 - 0.5){
+      const cy1 = Math.max(rect.y, vl.y1);
+      const cy2 = Math.min(y2, vl.y2);
+      if(cy2 - cy1 > 0.5){
+        const rest = vLines.filter((_, idx) => idx !== i);
+        const parts = [];
+        if(cy1 - rect.y > 0.5) parts.push({ x: rect.x, y: rect.y, w: rect.w, h: cy1 - rect.y });
+        if(vl.x - rect.x > 0.5) parts.push({ x: rect.x, y: cy1, w: vl.x - rect.x, h: cy2 - cy1 });
+        if(x2 - vl.x > 0.5) parts.push({ x: vl.x, y: cy1, w: x2 - vl.x, h: cy2 - cy1 });
+        if(y2 - cy2 > 0.5) parts.push({ x: rect.x, y: cy2, w: rect.w, h: y2 - cy2 });
+        const result = [];
+        for(const p of parts) result.push(...cutRect(p, rest, hLines));
+        return result;
+      }
+    }
+  }
+  // 尝试横线
+  for(let i = 0; i < hLines.length; i++){
+    const hl = hLines[i];
+    if(hl.y > rect.y + 0.5 && hl.y < y2 - 0.5){
+      const cx1 = Math.max(rect.x, hl.x1);
+      const cx2 = Math.min(x2, hl.x2);
+      if(cx2 - cx1 > 0.5){
+        const rest = hLines.filter((_, idx) => idx !== i);
+        const parts = [];
+        if(cx1 - rect.x > 0.5) parts.push({ x: rect.x, y: rect.y, w: cx1 - rect.x, h: rect.h });
+        if(hl.y - rect.y > 0.5) parts.push({ x: cx1, y: rect.y, w: cx2 - cx1, h: hl.y - rect.y });
+        if(y2 - hl.y > 0.5) parts.push({ x: cx1, y: hl.y, w: cx2 - cx1, h: y2 - hl.y });
+        if(x2 - cx2 > 0.5) parts.push({ x: cx2, y: rect.y, w: x2 - cx2, h: rect.h });
+        const result = [];
+        for(const p of parts) result.push(...cutRect(p, vLines, rest));
+        return result;
+      }
+    }
+  }
+  return [rect];
+}
+
+/* 获取矩形列表（像素） */
+function getRectangles(w, h){
+  const { vLines, hLines } = getCurrentLines();
+  const vPx = vLines.map(l => ({ x: l.x * w, y1: l.y1 * h, y2: l.y2 * h }));
+  const hPx = hLines.map(l => ({ y: l.y * h, x1: l.x1 * w, x2: l.x2 * w }));
+  // 判断所有线是否贯穿
+  const allFull = vPx.every(l => l.y1 < 1 && l.y2 > h - 1) && hPx.every(l => l.x1 < 1 && l.x2 > w - 1);
+  if(allFull){
+    const xs = [0, ...vPx.map(l => l.x).sort((a,b)=>a-b), w];
+    const ys = [0, ...hPx.map(l => l.y).sort((a,b)=>a-b), h];
+    const rects = [];
+    for(let i = 0; i < xs.length - 1; i++){
+      for(let j = 0; j < ys.length - 1; j++){
+        if(xs[i+1] - xs[i] > 0.5 && ys[j+1] - ys[j] > 0.5){
+          rects.push({ x: xs[i], y: ys[j], w: xs[i+1]-xs[i], h: ys[j+1]-ys[j] });
+        }
+      }
+    }
+    return rects;
+  }
+  return cutRect({ x: 0, y: 0, w, h }, vPx, hPx);
+}
+
+/* =========================================================
+ *  分割绘制
+ * ========================================================= */
+function drawSplit(){
+  const it = state.split.item;
+  if(!it){
+    canvas.width = 600; canvas.height = 400;
+    ctx.fillStyle = '#12161f';
+    ctx.fillRect(0, 0, 600, 400);
+    $('#empty').style.display = 'block';
+    setEmpty('✂️', '拖入一张图片或视频开始分割');
+    $('#infoSize').textContent = '—';
+    $('#infoGrid').textContent = '—';
+    $('#hintText').textContent = '';
+    return;
+  }
+  $('#empty').style.display = 'none';
+
+  const MAX = 1600;
+  const s = Math.min(1, MAX / Math.max(it.w, it.h));
+  const cw = Math.max(1, Math.round(it.w * s));
+  const ch = Math.max(1, Math.round(it.h * s));
+  if(canvas.width !== cw) canvas.width = cw;
+  if(canvas.height !== ch) canvas.height = ch;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, cw, ch);
+  try{
+    if(it.type === 'image') ctx.drawImage(it.el, 0, 0, cw, ch);
+    else if(it.el.readyState >= 2) ctx.drawImage(it.el, 0, 0, cw, ch);
+  }catch(e){}
+
+  const lines = getCurrentLines();
+  const rects = getRectangles(it.w, it.h);
+
+  if(state.split.showLines){
+    const lw = Math.max(1, Math.round(Math.min(cw, ch) * 0.0035));
+    const isCustom = state.split.cutMode === 'custom';
+    ctx.save();
+    ctx.strokeStyle = isCustom ? 'rgba(245,158,11,.95)' : 'rgba(79,140,255,.95)';
+    ctx.fillStyle = 'rgba(245,158,11,.95)';
+    ctx.lineWidth = lw;
+
+    for(const vl of lines.vLines){
+      const px = vl.x * cw;
+      const y1 = vl.y1 * ch;
+      const y2 = vl.y2 * ch;
+      ctx.beginPath(); ctx.moveTo(px, y1); ctx.lineTo(px, y2); ctx.stroke();
+      if(isCustom){
+        ctx.beginPath();
+        ctx.arc(px, (y1 + y2) / 2, Math.max(4, lw * 2.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    for(const hl of lines.hLines){
+      const py = hl.y * ch;
+      const x1 = hl.x1 * cw;
+      const x2 = hl.x2 * cw;
+      ctx.beginPath(); ctx.moveTo(x1, py); ctx.lineTo(x2, py); ctx.stroke();
+      if(isCustom){
+        ctx.beginPath();
+        ctx.arc((x1 + x2) / 2, py, Math.max(4, lw * 2.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // 编号
+    ctx.save();
+    const scale = cw / it.w;
+    rects.forEach((r, idx)=>{
+      const rx = r.x * scale, ry = r.y * scale, rw = r.w * scale, rh = r.h * scale;
+      const fs = Math.max(11, Math.round(Math.min(rw, rh) * 0.22));
+      ctx.font = `700 ${fs}px system-ui, -apple-system, "PingFang SC", sans-serif`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      const pad = Math.round(fs * 0.32);
+      const text = String(idx + 1);
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(8,12,20,.72)';
+      ctx.fillRect(rx + lw * 2, ry + lw * 2, tw + pad * 2, fs + pad * 1.4);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(text, rx + lw * 2 + pad, ry + lw * 2 + pad * 0.7);
+    });
+    ctx.restore();
+  }
+
+  $('#infoSize').textContent = `素材 ${it.w} × ${it.h}`;
+  $('#infoGrid').textContent = `${rects.length} 个切片`;
+  $('#hintText').textContent = state.split.cutMode === 'custom'
+    ? '拖动黄色分割线调整位置'
+    : (it.type === 'video' ? '视频可导出为视频或 GIF 切片' : '导出 ZIP 包含全部切片 + 配置');
+}
+
+/* =========================================================
+ *  渲染循环
+ * ========================================================= */
+function startLoop(){
+  if(rafId) return;
+  const loop = ()=>{ drawComposite(); rafId = requestAnimationFrame(loop); };
+  rafId = requestAnimationFrame(loop);
+}
+function stopLoop(){
+  if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+}
+function hasActiveVideo(){
+  if(state.workMode === 'split'){
+    const it = state.split.item;
+    return !!(it && it.type === 'video');
+  }
+  return state.items.some(i=>i.type === 'video');
+}
+function ensureLoop(){
+  if(hasActiveVideo() && state.playing) startLoop();
+  else stopLoop();
+}
+function syncPlayback(){
+  if(state.workMode === 'merge'){
+    state.items.forEach(i=>{
+      if(i.type === 'video'){
+        if(state.playing) i.el.play().catch(()=>{});
+        else i.el.pause();
+      }
+    });
+    const sit = state.split.item;
+    if(sit && sit.type === 'video') sit.el.pause();
+  }else{
+    state.items.forEach(i=>{ if(i.type === 'video') i.el.pause(); });
+    const sit = state.split.item;
+    if(sit && sit.type === 'video'){
+      if(state.playing) sit.el.play().catch(()=>{});
+      else sit.el.pause();
+    }
+  }
+  ensureLoop();
+}
+function playVideos(){
+  state.playing = true;
+  $('#playBtn').textContent = '⏸ 暂停';
+  syncPlayback();
+}
+function pauseVideos(){
+  state.playing = false;
+  $('#playBtn').textContent = '▶ 播放';
+  syncPlayback();
+}
+
+/* =========================================================
+ *  画布拖拽：拼接重排 / 分割线
+ * ========================================================= */
+function eventToCell(e){
+  if(state.workMode !== 'merge' || state.mergeConfig) return -1;
+  const L = computeLayout();
+  if(!L.n) return -1;
+  const rect = canvas.getBoundingClientRect();
+  if(!rect.width || !rect.height) return -1;
+  const x = (e.clientX - rect.left) / rect.width * canvas.width;
+  const y = (e.clientY - rect.top) / rect.height * canvas.height;
+  if(x < 0 || y < 0 || x > canvas.width || y > canvas.height) return -1;
+  const c = Math.floor(x / L.cellW);
+  const r = Math.floor(y / L.cellH);
+  if(c < 0 || c >= L.cols || r < 0 || r >= L.rows) return -1;
+  const idx = r * L.cols + c;
+  return idx < L.n ? idx : -1;
+}
+
+function hitTestCutLine(e){
+  if(state.workMode !== 'split') return null;
+  if(state.split.cutMode !== 'custom') return null;
+  const it = state.split.item;
+  if(!it) return null;
+  const rect = canvas.getBoundingClientRect();
+  if(!rect.width || !rect.height) return null;
+  const x = (e.clientX - rect.left) / rect.width * canvas.width;
+  const y = (e.clientY - rect.top) / rect.height * canvas.height;
+  const tol = 10;
+  for(let i = 0; i < state.split.vLines.length; i++){
+    const vl = state.split.vLines[i];
+    if(Math.abs(x - vl.x * canvas.width) < tol){
+      const y1 = vl.y1 * canvas.height, y2 = vl.y2 * canvas.height;
+      if(y >= y1 - tol && y <= y2 + tol) return { axis: 'x', index: i };
+    }
+  }
+  for(let i = 0; i < state.split.hLines.length; i++){
+    const hl = state.split.hLines[i];
+    if(Math.abs(y - hl.y * canvas.height) < tol){
+      const x1 = hl.x1 * canvas.width, x2 = hl.x2 * canvas.width;
+      if(x >= x1 - tol && x <= x2 + tol) return { axis: 'y', index: i };
+    }
+  }
+  return null;
+}
+
+canvas.addEventListener('pointerdown', e=>{
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  if(state.workMode === 'split' && state.split.cutMode === 'custom' && state.split.item){
+    const hit = hitTestCutLine(e);
+    if(hit){
+      e.preventDefault();
+      cutDrag.active = true;
+      cutDrag.axis = hit.axis;
+      cutDrag.index = hit.index;
+      cutDrag.pointerId = e.pointerId;
+      try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+      canvas.style.cursor = hit.axis === 'x' ? 'ew-resize' : 'ns-resize';
+      return;
+    }
+  }
+  if(state.workMode !== 'merge' || state.mergeConfig) return;
+  if(!state.items.length) return;
+  const idx = eventToCell(e);
+  if(idx < 0) return;
+  e.preventDefault();
+  drag.active = true;
+  drag.from = idx;
+  drag.over = idx;
+  drag.pointerId = e.pointerId;
+  try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+  canvas.style.cursor = 'grabbing';
+  ensureLoop();
+  drawComposite();
+});
+
+canvas.addEventListener('pointermove', e=>{
+  if(cutDrag.active){
+    const rect = canvas.getBoundingClientRect();
+    if(!rect.width || !rect.height) return;
+    if(cutDrag.axis === 'x'){
+      const vl = state.split.vLines[cutDrag.index];
+      if(vl){
+        const x = (e.clientX - rect.left) / rect.width;
+        vl.x = Math.max(0.005, Math.min(0.995, x));
+      }
+    }else{
+      const hl = state.split.hLines[cutDrag.index];
+      if(hl){
+        const y = (e.clientY - rect.top) / rect.height;
+        hl.y = Math.max(0.005, Math.min(0.995, y));
+      }
+    }
+    drawComposite();
+    return;
+  }
+  if(!drag.active){
+    if(e.pointerType === 'mouse'){
+      if(state.workMode === 'split' && state.split.cutMode === 'custom' && state.split.item){
+        const hit = hitTestCutLine(e);
+        canvas.style.cursor = hit ? (hit.axis === 'x' ? 'ew-resize' : 'ns-resize') : 'default';
+      }else if(state.workMode === 'merge' && !state.mergeConfig && state.items.length){
+        canvas.style.cursor = eventToCell(e) >= 0 ? 'grab' : 'default';
+      }else{
+        canvas.style.cursor = 'default';
+      }
+    }
+    return;
+  }
+  const idx = eventToCell(e);
+  if(idx >= 0 && idx !== drag.over){ drag.over = idx; drawComposite(); }
+  else if(idx < 0 && drag.over !== -1){ drag.over = -1; drawComposite(); }
+});
+
+function endCanvasDrag(e){
+  if(cutDrag.active){
+    cutDrag.active = false;
+    cutDrag.axis = null;
+    cutDrag.index = -1;
+    canvas.style.cursor = 'default';
+    try{ canvas.releasePointerCapture(e.pointerId); }catch(_){}
+    renderCutLines();
+    drawComposite();
+    return;
+  }
+  if(!drag.active) return;
+  const from = drag.from, to = drag.over;
+  drag.active = false;
+  drag.from = -1;
+  drag.over = -1;
+  canvas.style.cursor = 'default';
+  try{ canvas.releasePointerCapture(e.pointerId); }catch(_){}
+  if(from >= 0 && to >= 0 && from !== to && to < state.items.length){
+    const [it] = state.items.splice(from, 1);
+    state.items.splice(to, 0, it);
+    state.manualOrder = true;
+    toast(`已移动到第 ${to + 1} 位`);
+  }
+  refresh();
+}
+canvas.addEventListener('pointerup', endCanvasDrag);
+canvas.addEventListener('pointercancel', endCanvasDrag);
+
+/* =========================================================
+ *  切割线列表 UI
+ * ========================================================= */
+function renderCutLines(){
+  const container = $('#cutLinesList');
+  if(!container) return;
+  const it = state.split.item;
+  const { vLines, hLines } = getCurrentLines();
+  $('#cutLineCount').textContent = vLines.length + hLines.length;
+  if(vLines.length === 0 && hLines.length === 0){
+    container.innerHTML = '<div style="color:#6b7a99;font-size:11px;padding:8px 0">暂无切割线，点击下方按钮添加</div>';
+    return;
+  }
+  const W = it ? it.w : 1;
+  const H = it ? it.h : 1;
+  let html = '';
+  if(vLines.length > 0){
+    html += '<div style="font-size:11px;color:#6b7a99;margin:6px 0 4px">竖线（V）</div>';
+    vLines.forEach((vl, i)=>{
+      const isFull = vl.y1 < 0.001 && vl.y2 > 0.999;
+      const info = isFull ? '贯穿' : `y:${(vl.y1*100).toFixed(0)}%~${(vl.y2*100).toFixed(0)}%`;
+      html += `
+        <div class="cut-item" data-axis="v" data-idx="${i}">
+          <div class="cut-item-head">
+            <span class="cut-badge">V</span>
+            <span class="cut-info">x=${(vl.x*100).toFixed(1)}% · ${info}</span>
+            <button class="cut-expand">▾</button>
+            <button class="cut-del" data-act="del">×</button>
+          </div>
+          <div class="cut-item-body" style="display:none">
+            <div class="cut-field">
+              <label>位置 x</label>
+              <input type="number" class="cut-input" data-field="pos" value="${(vl.x*100).toFixed(2)}" step="0.1">
+              <button class="cut-unit" data-field="pos" data-dim="${W}">%</button>
+            </div>
+            <div class="cut-field">
+              <label>起 y</label>
+              <input type="number" class="cut-input" data-field="y1" value="${(vl.y1*100).toFixed(2)}" step="0.1">
+              <button class="cut-unit" data-field="y1" data-dim="${H}">%</button>
+            </div>
+            <div class="cut-field">
+              <label>止 y</label>
+              <input type="number" class="cut-input" data-field="y2" value="${(vl.y2*100).toFixed(2)}" step="0.1">
+              <button class="cut-unit" data-field="y2" data-dim="${H}">%</button>
+            </div>
+          </div>
+        </div>`;
+    });
+  }
+  if(hLines.length > 0){
+    html += '<div style="font-size:11px;color:#6b7a99;margin:10px 0 4px">横线（H）</div>';
+    hLines.forEach((hl, i)=>{
+      const isFull = hl.x1 < 0.001 && hl.x2 > 0.999;
+      const info = isFull ? '贯穿' : `x:${(hl.x1*100).toFixed(0)}%~${(hl.x2*100).toFixed(0)}%`;
+      html += `
+        <div class="cut-item" data-axis="h" data-idx="${i}">
+          <div class="cut-item-head">
+            <span class="cut-badge h">H</span>
+            <span class="cut-info">y=${(hl.y*100).toFixed(1)}% · ${info}</span>
+            <button class="cut-expand">▾</button>
+            <button class="cut-del" data-act="del">×</button>
+          </div>
+          <div class="cut-item-body" style="display:none">
+            <div class="cut-field">
+              <label>位置 y</label>
+              <input type="number" class="cut-input" data-field="pos" value="${(hl.y*100).toFixed(2)}" step="0.1">
+              <button class="cut-unit" data-field="pos" data-dim="${H}">%</button>
+            </div>
+            <div class="cut-field">
+              <label>起 x</label>
+              <input type="number" class="cut-input" data-field="x1" value="${(hl.x1*100).toFixed(2)}" step="0.1">
+              <button class="cut-unit" data-field="x1" data-dim="${W}">%</button>
+            </div>
+            <div class="cut-field">
+              <label>止 x</label>
+              <input type="number" class="cut-input" data-field="x2" value="${(hl.x2*100).toFixed(2)}" step="0.1">
+              <button class="cut-unit" data-field="x2" data-dim="${W}">%</button>
+            </div>
+          </div>
+        </div>`;
+    });
+  }
+  container.innerHTML = html;
+}
+
+function bindCutLinesEvents(){
+  const container = $('#cutLinesList');
+  if(!container || container.dataset.bound) return;
+  container.dataset.bound = '1';
+
+  container.addEventListener('click', e=>{
+    const expand = e.target.closest('.cut-expand');
+    if(expand){
+      const item = expand.closest('.cut-item');
+      const body = item.querySelector('.cut-item-body');
+      const show = body.style.display === 'none';
+      body.style.display = show ? 'block' : 'none';
+      expand.textContent = show ? '▴' : '▾';
+      return;
+    }
+    const del = e.target.closest('[data-act="del"]');
+    if(del){
+      const item = del.closest('.cut-item');
+      const axis = item.dataset.axis, idx = +item.dataset.idx;
+      if(axis === 'v') state.split.vLines.splice(idx, 1);
+      else state.split.hLines.splice(idx, 1);
+      renderCutLines();
+      drawComposite();
+      return;
+    }
+    const unitBtn = e.target.closest('.cut-unit');
+    if(unitBtn){
+      const newUnit = unitBtn.textContent === '%' ? 'px' : '%';
+      const item = unitBtn.closest('.cut-item');
+      const input = item.querySelector(`.cut-input[data-field="${unitBtn.dataset.field}"]`);
+      const dim = +unitBtn.dataset.dim || 1;
+      const curVal = parseFloat(input.value) || 0;
+      if(newUnit === 'px') input.value = (curVal / 100 * dim).toFixed(1);
+      else input.value = (curVal / dim * 100).toFixed(2);
+      unitBtn.textContent = newUnit;
+      return;
+    }
+  });
+
+  container.addEventListener('input', e=>{
+    const input = e.target.closest('.cut-input');
+    if(!input) return;
+    const item = input.closest('.cut-item');
+    const axis = item.dataset.axis, idx = +item.dataset.idx, field = input.dataset.field;
+    const unitBtn = item.querySelector(`.cut-unit[data-field="${field}"]`);
+    const unit = unitBtn.textContent;
+    const val = parseFloat(input.value);
+    if(isNaN(val)) return;
+    const dim = +unitBtn.dataset.dim || 1;
+    let norm = unit === '%' ? val / 100 : val / dim;
+    norm = Math.max(0, Math.min(1, norm));
+    const line = axis === 'v' ? state.split.vLines[idx] : state.split.hLines[idx];
+    if(!line) return;
+    if(field === 'pos'){
+      if(axis === 'v') line.x = norm; else line.y = norm;
+    }else if(field === 'y1') line.y1 = Math.min(norm, line.y2 - 0.001);
+    else if(field === 'y2') line.y2 = Math.max(norm, line.y1 + 0.001);
+    else if(field === 'x1') line.x1 = Math.min(norm, line.x2 - 0.001);
+    else if(field === 'x2') line.x2 = Math.max(norm, line.x1 + 0.001);
+    drawComposite();
+    const head = item.querySelector('.cut-info');
+    if(head){
+      const isFull = axis === 'v' ? (line.y1 < 0.001 && line.y2 > 0.999) : (line.x1 < 0.001 && line.x2 > 0.999);
+      const info = axis === 'v'
+        ? (isFull ? '贯穿' : `y:${(line.y1*100).toFixed(0)}%~${(line.y2*100).toFixed(0)}%`)
+        : (isFull ? '贯穿' : `x:${(line.x1*100).toFixed(0)}%~${(line.x2*100).toFixed(0)}%`);
+      const pos = axis === 'v' ? line.x : line.y;
+      head.textContent = `${axis === 'v' ? 'x' : 'y'}=${(pos*100).toFixed(1)}% · ${info}`;
+    }
+  });
+}
+
+/* =========================================================
+ *  添加 / 重置 切割线
+ * ========================================================= */
+$('#addVLineBtn').addEventListener('click', ()=>{
+  let x = 0.5;
+  if(state.split.vLines.length > 0){
+    const xs = [0, ...state.split.vLines.map(l => l.x).sort((a,b)=>a-b), 1];
+    let maxGap = 0, bestX = 0.5;
+    for(let i = 0; i < xs.length - 1; i++){
+      const gap = xs[i+1] - xs[i];
+      if(gap > maxGap){ maxGap = gap; bestX = (xs[i] + xs[i+1]) / 2; }
+    }
+    x = bestX;
+  }
+  state.split.vLines.push({ x, y1: 0, y2: 1 });
+  state.split.vLines.sort((a,b)=>a.x-b.x);
+  renderCutLines();
+  drawComposite();
+});
+$('#addHLineBtn').addEventListener('click', ()=>{
+  let y = 0.5;
+  if(state.split.hLines.length > 0){
+    const ys = [0, ...state.split.hLines.map(l => l.y).sort((a,b)=>a-b), 1];
+    let maxGap = 0, bestY = 0.5;
+    for(let i = 0; i < ys.length - 1; i++){
+      const gap = ys[i+1] - ys[i];
+      if(gap > maxGap){ maxGap = gap; bestY = (ys[i] + ys[i+1]) / 2; }
+    }
+    y = bestY;
+  }
+  state.split.hLines.push({ y, x1: 0, x2: 1 });
+  state.split.hLines.sort((a,b)=>a.y-b.y);
+  renderCutLines();
+  drawComposite();
+});
+
+$('#resetCutsBtn').addEventListener('click', ()=>{
+  const rows = state.split.layout === 'cols' ? 1 : state.split.rows;
+  const cols = state.split.layout === 'rows' ? 1 : state.split.cols;
+  state.split.vLines = [];
+  for(let i = 1; i < cols; i++) state.split.vLines.push({ x: i / cols, y1: 0, y2: 1 });
+  state.split.hLines = [];
+  for(let i = 1; i < rows; i++) state.split.hLines.push({ y: i / rows, x1: 0, x2: 1 });
+  renderCutLines();
+  drawComposite();
+  toast('已重置为均分');
+});
+
+/* =========================================================
+ *  自动检测视频变化区域
+ * ========================================================= */
+async function detectChanges(video){
+  const sampleCount = 12;
+  const sampleW = 240;
+  const sampleH = Math.max(1, Math.round(sampleW * (video.videoHeight || 1) / (video.videoWidth || 1)));
+  const duration = video.duration;
+  if(!isFinite(duration) || duration <= 0) throw new Error('无法获取视频时长');
+  const frames = [];
+  for(let i = 0; i < sampleCount; i++){
+    const t = duration * i / sampleCount;
+    await seekVideo(video, t);
+    const cv = document.createElement('canvas');
+    cv.width = sampleW; cv.height = sampleH;
+    const cx = cv.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(video, 0, 0, sampleW, sampleH);
+    frames.push(cx.getImageData(0, 0, sampleW, sampleH));
+  }
+  const w = sampleW, h = sampleH;
+  const projX = new Float32Array(w);
+  const projY = new Float32Array(h);
+  for(let f = 1; f < frames.length; f++){
+    const fd = frames[f].data, bd = frames[0].data;
+    for(let y = 0; y < h; y++){
+      for(let x = 0; x < w; x++){
+        const o = (y * w + x) * 4;
+        const d = Math.abs(fd[o]-bd[o]) + Math.abs(fd[o+1]-bd[o+1]) + Math.abs(fd[o+2]-bd[o+2]);
+        projX[x] += d; projY[y] += d;
+      }
+    }
+  }
+  let maxX = 0, maxY = 0;
+  for(let i = 0; i < w; i++) if(projX[i] > maxX) maxX = projX[i];
+  for(let i = 0; i < h; i++) if(projY[i] > maxY) maxY = projY[i];
+  if(maxX < 1 || maxY < 1) return { vLines: [], hLines: [] };
+  const threshold = 0.12;
+  const minRun = 4;
+  const findRegions = (proj, max) => {
+    const regions = [];
+    let start = -1;
+    for(let i = 0; i < proj.length; i++){
+      if(proj[i] / max > threshold){
+        if(start < 0) start = i;
+      }else{
+        if(start >= 0 && i - start >= minRun) regions.push([start, i - 1]);
+        start = -1;
+      }
+    }
+    if(start >= 0 && proj.length - start >= minRun) regions.push([start, proj.length - 1]);
+    return regions;
+  };
+  const xRegions = findRegions(projX, maxX);
+  const yRegions = findRegions(projY, maxY);
+  const mergeRegions = (regions, len) => {
+    const merged = [];
+    for(const r of regions){
+      if(merged.length > 0 && r[0] - merged[merged.length-1][1] < len * 0.04){
+        merged[merged.length-1][1] = r[1];
+      }else{
+        merged.push([...r]);
+      }
+    }
+    return merged;
+  };
+  const xMerged = mergeRegions(xRegions, w);
+  const yMerged = mergeRegions(yRegions, h);
+  const vLines = [], hLines = [];
+  for(const [x1, x2] of xMerged){
+    if(x1 > w * 0.02) vLines.push({ x: x1 / w, y1: 0, y2: 1 });
+    if(x2 < w * 0.98) vLines.push({ x: x2 / w, y1: 0, y2: 1 });
+  }
+  for(const [y1, y2] of yMerged){
+    if(y1 > h * 0.02) hLines.push({ y: y1 / h, x1: 0, x2: 1 });
+    if(y2 < h * 0.98) hLines.push({ y: y2 / h, x1: 0, x2: 1 });
+  }
+  const uniq = (lines, key) => {
+    const seen = new Set();
+    return lines.filter(l => {
+      const k = l[key].toFixed(3);
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+  return {
+    vLines: uniq(vLines, 'x').sort((a,b)=>a.x-b.x),
+    hLines: uniq(hLines, 'y').sort((a,b)=>a.y-b.y)
+  };
+}
+
+$('#autoDetectBtn').addEventListener('click', async ()=>{
+  const it = state.split.item;
+  if(!it){ toast('请先导入视频素材'); return; }
+  if(it.type !== 'video'){ toast('自动检测需要视频素材'); return; }
+  showOverlay('正在分析视频变化…', 0.05);
+  const v = it.el;
+  const wasPaused = v.paused;
+  try{
+    v.pause();
+    const result = await detectChanges(v);
+    if(result.vLines.length === 0 && result.hLines.length === 0){
+      hideOverlay();
+      toast('未检测到显著变化区域');
+      return;
+    }
+    state.split.vLines = result.vLines;
+    state.split.hLines = result.hLines;
+    state.split.cutMode = 'custom';
+    $$('#splitCutModeSeg button').forEach(b => b.classList.toggle('active', b.dataset.cm === 'custom'));
+    $('#customHint').style.display = 'block';
+    $('#resetCutsBtn').style.display = 'flex';
+    updateCutLinesSection();
+    renderCutLines();
+    drawComposite();
+    hideOverlay();
+    toast(`检测完成：${result.vLines.length} 竖线 · ${result.hLines.length} 横线`);
+  }catch(e){
+    console.error(e);
+    hideOverlay();
+    toast('检测失败：' + e.message);
+  }finally{
+    if(!wasPaused) v.play().catch(()=>{});
+  }
+});
+
+/* =========================================================
+ *  刷新
+ * ========================================================= */
+function refresh(){
+  drawComposite();
+  if(state.workMode === 'merge') renderList();
+  updateMergeUI();
+  ensureLoop();
+}
+function updateMergeUI(){
+  const inConfig = !!state.mergeConfig;
+  $('#layoutSection').style.display = inConfig ? 'none' : '';
+  const cs = $('#configStatus');
+  if(inConfig){
+    const loaded = state.items.filter(it => it.pos).length;
+    const total = state.mergeConfig.tiles.length;
+    const miss = total - loaded;
+    cs.style.display = 'block';
+    cs.className = 'config-card';
+    cs.innerHTML =
+      `<div class="ct">📋 配置模式 · ${loaded}/${total} 分片</div>
+       <div class="cd">
+         源尺寸 <b>${state.mergeConfig.source.width} × ${state.mergeConfig.source.height}</b><br>
+         切片数 <b>${total}</b>
+         ${miss > 0 ? `<br><span style="color:#fca5a5">⚠️ ${miss} 个分片缺失</span>` : '<br><span style="color:#86efac">✅ 全部匹配</span>'}
+       </div>
+       <button class="btn btn-ghost" data-act="exit-config" style="margin-top:8px;padding:6px">退出配置模式</button>`;
+  }else{
+    cs.style.display = 'none';
+    cs.innerHTML = '';
+  }
+}
+
+/* =========================================================
+ *  拼接：列表
+ * ========================================================= */
+function renderList(){
+  const list = $('#list');
+  const scrollTop = list.scrollTop;
+  list.innerHTML = '';
+  const tileMap = state.mergeConfig
+    ? new Map(state.mergeConfig.tiles.map((t, i) => [t.name, t]))
+    : null;
+  state.items.forEach((it, i)=>{
+    const li = document.createElement('li');
+    li.className = 'file-item';
+    li.draggable = true;
+    li.dataset.idx = i;
+    if(tileMap){
+      const tile = tileMap.get(it.name);
+      li.classList.add(tile ? 'matched' : 'missing');
+    }
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    if(it.type === 'image'){
+      const im = document.createElement('img');
+      im.src = it.url; im.loading = 'lazy';
+      thumb.appendChild(im);
+    }else{
+      thumb.textContent = '🎬';
+    }
+    const badge = document.createElement('span');
+    badge.className = 'idx';
+    badge.textContent = i + 1;
+    thumb.appendChild(badge);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML =
+      `<div class="fname" title="${esc(it.name)}">${esc(it.name)}</div>
+       <div class="fsub">${it.type === 'video' ? '视频' : '图片'} · ${it.w}×${it.h}</div>`;
+    const ops = document.createElement('div');
+    ops.className = 'ops';
+    if(state.mergeConfig){
+      ops.innerHTML = `<button data-act="del" title="移除">✕</button>`;
+    }else{
+      ops.innerHTML =
+        `<button data-act="up" title="上移">▲</button>
+         <button data-act="down" title="下移">▼</button>
+         <button data-act="del" title="移除">✕</button>`;
+    }
+    li.append(thumb, meta, ops);
+    list.appendChild(li);
+  });
+  list.scrollTop = scrollTop;
+  $('#count').textContent = state.items.length;
+}
+
+$('#list').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-act]');
+  if(!btn) return;
+  const li = btn.closest('.file-item');
+  const i = +li.dataset.idx;
+  const act = btn.dataset.act;
+  if(act === 'up' && i > 0){
+    [state.items[i-1], state.items[i]] = [state.items[i], state.items[i-1]];
+    state.manualOrder = true;
+  }else if(act === 'down' && i < state.items.length - 1){
+    [state.items[i+1], state.items[i]] = [state.items[i], state.items[i+1]];
+    state.manualOrder = true;
+  }else if(act === 'del'){
+    if(state.items[i].url) URL.revokeObjectURL(state.items[i].url);
+    state.items.splice(i, 1);
+  }else return;
+  refresh();
+});
+
+$('#list').addEventListener('dragstart', e=>{
+  const li = e.target.closest('.file-item');
+  if(!li) return;
+  dragIdx = +li.dataset.idx;
+  e.dataTransfer.effectAllowed = 'move';
+  try{ e.dataTransfer.setData('text/plain', String(dragIdx)); }catch(_){}
+});
+$('#list').addEventListener('dragover', e=>{
+  if(e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
+  const li = e.target.closest('.file-item');
+  $$('.file-item.drag-over').forEach(x=>x.classList.remove('drag-over'));
+  if(li) li.classList.add('drag-over');
+});
+$('#list').addEventListener('dragleave', e=>{
+  const li = e.target.closest('.file-item');
+  if(li) li.classList.remove('drag-over');
+});
+$('#list').addEventListener('drop', e=>{
+  if(e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const li = e.target.closest('.file-item');
+  if(!li || dragIdx === null) return;
+  const to = +li.dataset.idx;
+  if(to === dragIdx) return;
+  const [it] = state.items.splice(dragIdx, 1);
+  state.items.splice(to, 0, it);
+  dragIdx = null;
+  state.manualOrder = true;
+  refresh();
+});
+
+/* =========================================================
+ *  拖放导入
+ * ========================================================= */
+const drop = $('#drop');
+const fileInput = $('#fileInput');
+drop.addEventListener('click', ()=> fileInput.click());
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) addFiles(e.target.files);
+  e.target.value = '';
+});
+['dragenter','dragover'].forEach(ev=>{
+  drop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); drop.classList.add('over'); });
+});
+['dragleave','drop'].forEach(ev=>{
+  drop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); drop.classList.remove('over'); });
+});
+drop.addEventListener('drop', e=>{
+  if(e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+const splitDrop = $('#splitDrop');
+const splitFileInput = $('#splitFileInput');
+splitDrop.addEventListener('click', ()=> splitFileInput.click());
+splitFileInput.addEventListener('change', e=>{
+  if(e.target.files.length) addSplitFile(e.target.files[0]);
+  e.target.value = '';
+});
+['dragenter','dragover'].forEach(ev=>{
+  splitDrop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); splitDrop.classList.add('over'); });
+});
+['dragleave','drop'].forEach(ev=>{
+  splitDrop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); splitDrop.classList.remove('over'); });
+});
+splitDrop.addEventListener('drop', e=>{
+  if(e.dataTransfer.files.length) addSplitFile(e.dataTransfer.files[0]);
+});
+
+window.addEventListener('dragover', e=>{ e.preventDefault(); });
+window.addEventListener('drop', e=>{
+  e.preventDefault();
+  if(!e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  if(state.workMode === 'split') addSplitFile(e.dataTransfer.files[0]);
+  else{
+    const f = e.dataTransfer.files[0];
+    if(f.name.endsWith('.zip') || f.name.endsWith('.json')) importConfigFile(f);
+    else addFiles(e.dataTransfer.files);
+  }
+});
+
+/* =========================================================
+ *  分割：素材导入
+ * ========================================================= */
+async function addSplitFile(file){
+  if(!file) return;
+  const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|mkv)$/i.test(file.name);
+  const url = URL.createObjectURL(file);
+  showOverlay('正在读取素材…', 0.3);
+  try{
+    if(!isVideo){
+      const img = new Image();
+      await new Promise((res, rej)=>{ img.onload = res; img.onerror = rej; img.src = url; });
+      setSplitItem({ type:'image', name:file.name, url, el:img,
+        w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+    }else{
+      const v = document.createElement('video');
+      v.src = url; v.muted = true; v.loop = true; v.playsInline = true;
+      v.preload = 'auto'; v.crossOrigin = 'anonymous';
+      await new Promise(res=>{
+        let ok = false;
+        const fin = ()=>{ if(!ok){ ok = true; res(); } };
+        v.onloadedmetadata = fin; v.onloadeddata = fin; v.onerror = fin;
+        setTimeout(fin, 6000);
+      });
+      setSplitItem({ type:'video', name:file.name, url, el:v,
+        w: v.videoWidth || 640, h: v.videoHeight || 360 });
+    }
+    if(state.split.item && state.split.item.type === 'video' && !state.fpsDetected){
+      const fps = await detectVideoFps(state.split.item.el);
+      state.detectedFps = fps;
+      state.fpsDetected = true;
+      updateFpsLabel();
+    }
+  }catch(e){
+    console.warn(e);
+    toast('读取失败：' + file.name);
+  }
+  hideOverlay();
+}
+
+function setSplitItem(item){
+  const old = state.split.item;
+  if(old && old.url) URL.revokeObjectURL(old.url);
+  state.split.item = item;
+  state.split.vLines = [];
+  state.split.hLines = [];
+  state.split.cutMode = 'even';
+  $$('#splitCutModeSeg button').forEach(b => b.classList.toggle('active', b.dataset.cm === 'even'));
+  $('#customHint').style.display = 'none';
+  $('#resetCutsBtn').style.display = 'none';
+  updateCutLinesSection();
+  renderSplitItem();
+  syncPlayback();
+  drawComposite();
+}
+function renderSplitItem(){
+  const box = $('#splitItemInfo');
+  const sec = $('#splitItemSection');
+  const it = state.split.item;
+  if(!it){ sec.style.display = 'none'; box.innerHTML = ''; return; }
+  sec.style.display = 'block';
+  box.innerHTML =
+    `<div class="file-item" style="margin:0">
+      <div class="thumb">${it.type === 'image' ? `<img src="${it.url}" alt="">` : '🎬'}</div>
+      <div class="meta">
+        <div class="fname" title="${esc(it.name)}">${esc(it.name)}</div>
+        <div class="fsub">${it.type === 'video' ? '视频' : '图片'} · ${it.w}×${it.h}</div>
+      </div>
+    </div>`;
+}
+$('#splitClearBtn').addEventListener('click', ()=>{
+  const old = state.split.item;
+  if(old && old.url) URL.revokeObjectURL(old.url);
+  state.split.item = null;
+  state.split.vLines = [];
+  state.split.hLines = [];
+  renderSplitItem();
+  updateCutLinesSection();
+  syncPlayback();
+  drawComposite();
+});
+
+/* =========================================================
+ *  分割：控件
+ * ========================================================= */
+$('#splitLayoutSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-sl]');
+  if(!btn) return;
+  $$('#splitLayoutSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.split.layout = btn.dataset.sl;
+  updateSplitInputs();
+  if(state.split.cutMode === 'even') drawComposite();
+  else if(state.split.cutMode === 'custom'){ renderCutLines(); drawComposite(); }
+});
+function updateSplitInputs(){
+  const mode = state.split.layout;
+  const rowsIn = $('#splitRows'), colsIn = $('#splitCols');
+  if(mode === 'rows'){ rowsIn.disabled = false; colsIn.disabled = true; colsIn.value = 1; rowsIn.value = state.split.rows; }
+  else if(mode === 'cols'){ rowsIn.disabled = true; colsIn.disabled = false; rowsIn.value = 1; colsIn.value = state.split.cols; }
+  else { rowsIn.disabled = false; colsIn.disabled = false; rowsIn.value = state.split.rows; colsIn.value = state.split.cols; }
+}
+updateSplitInputs();
+
+$('#splitRows').addEventListener('input', e=>{
+  state.split.rows = Math.max(1, Math.min(32, parseInt(e.target.value) || 1));
+  if(state.split.cutMode === 'even') drawComposite();
+});
+$('#splitCols').addEventListener('input', e=>{
+  state.split.cols = Math.max(1, Math.min(32, parseInt(e.target.value) || 1));
+  if(state.split.cutMode === 'even') drawComposite();
+});
+$('#splitShowLines').addEventListener('change', e=>{
+  state.split.showLines = e.target.value === '1';
+  drawComposite();
+});
+$('#splitImgFormat').addEventListener('change', e=>{
+  $('#splitQualityField').style.display = e.target.value === 'png' ? 'none' : 'flex';
+});
+
+$('#splitCutModeSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-cm]');
+  if(!btn) return;
+  const newMode = btn.dataset.cm;
+  if(newMode === 'custom' && state.split.cutMode === 'even'){
+    // 从 even 生成初始线
+    const rows = state.split.layout === 'cols' ? 1 : state.split.rows;
+    const cols = state.split.layout === 'rows' ? 1 : state.split.cols;
+    state.split.vLines = [];
+    for(let i = 1; i < cols; i++) state.split.vLines.push({ x: i / cols, y1: 0, y2: 1 });
+    state.split.hLines = [];
+    for(let i = 1; i < rows; i++) state.split.hLines.push({ y: i / rows, x1: 0, x2: 1 });
+  }
+  state.split.cutMode = newMode;
+  $$('#splitCutModeSeg button').forEach(b => b.classList.toggle('active', b.dataset.cm === newMode));
+  $('#customHint').style.display = newMode === 'custom' ? 'block' : 'none';
+  $('#resetCutsBtn').style.display = newMode === 'custom' ? 'flex' : 'none';
+  updateCutLinesSection();
+  if(newMode === 'custom') renderCutLines();
+  drawComposite();
+});
+
+bindCutLinesEvents();
+
+/* =========================================================
+ *  配置生成
+ * ========================================================= */
+function buildConfig(type, source){
+  const lines = getCurrentLines();
+  const xs = [0, ...lines.vLines.map(l => l.x), 1].sort((a,b)=>a-b);
+  const ys = [0, ...lines.hLines.map(l => l.y), 1].sort((a,b)=>a-b);
+  return {
+    version: 2,
+    generator: 'slice-merger',
+    createdAt: new Date().toISOString(),
+    type,
+    source: {
+      name: source.name,
+      type: source.type,
+      width: source.w,
+      height: source.h
+    },
+    split: {
+      cutMode: state.split.cutMode,
+      rows: state.split.rows,
+      cols: state.split.cols,
+      xs,
+      ys,
+      vLines: lines.vLines.map(l => ({ x: l.x, y1: l.y1, y2: l.y2 })),
+      hLines: lines.hLines.map(l => ({ y: l.y, x1: l.x1, x2: l.x2 }))
+    },
+    tiles: []
+  };
+}
+function configJsonBytes(config){
+  return new TextEncoder().encode(JSON.stringify(config, null, 2));
+}
+
+/* =========================================================
+ *  分割：导出图片切片 + 配置
+ * ========================================================= */
+$('#splitExportImg').addEventListener('click', async ()=>{
+  const it = state.split.item;
+  if(!it){ toast('请先导入一张图片或视频'); return; }
+  const format = $('#splitImgFormat').value;
+  const quality = +$('#splitImgQuality').value / 100;
+  const mime = format === 'png' ? 'image/png' : format === 'webp' ? 'image/webp' : 'image/jpeg';
+  const ext = format === 'png' ? 'png' : format === 'webp' ? 'webp' : 'jpg';
+  showOverlay('正在生成切片…', 0.05);
+  await sleep(60);
+
+  const src = document.createElement('canvas');
+  src.width = it.w; src.height = it.h;
+  const sctx = src.getContext('2d');
+  if(it.type === 'video'){
+    if(it.el.readyState < 2){ hideOverlay(); toast('视频尚未加载完成，请稍后'); return; }
+  }
+  sctx.drawImage(it.el, 0, 0, it.w, it.h);
+
+  const rects = getRectangles(it.w, it.h);
+  const base = (it.name || 'slice').replace(/\.[^.]+$/, '') || 'slice';
+  const files = [];
+  const tileMetas = [];
+
+  try{
+    for(let i = 0; i < rects.length; i++){
+      const r = rects[i];
+      const cc = document.createElement('canvas');
+      cc.width = Math.max(1, Math.round(r.w));
+      cc.height = Math.max(1, Math.round(r.h));
+      cc.getContext('2d').drawImage(src, r.x, r.y, r.w, r.h, 0, 0, cc.width, cc.height);
+      const blob = await new Promise(res => cc.toBlob(res, mime, format === 'png' ? undefined : quality));
+      if(blob && blob.size){
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        const fileName = `${base}_tile${String(i+1).padStart(3, '0')}.${ext}`;
+        files.push({ name: fileName, data: buf });
+        tileMetas.push({
+          name: fileName,
+          index: i,
+          r: 0, c: i,
+          x: Math.round(r.x), y: Math.round(r.y),
+          w: cc.width, h: cc.height,
+          md5: MD5(buf)
+        });
+      }
+      updateOverlay('正在生成切片 + MD5…', 0.05 + (i + 1) / rects.length * 0.9);
+      if(i % 3 === 0) await sleep(0);
+    }
+    if(!files.length){ hideOverlay(); toast('生成失败，请重试'); return; }
+
+    const config = buildConfig('image', it);
+    config.tiles = tileMetas;
+    files.push({ name: `${base}_config.json`, data: configJsonBytes(config) });
+
+    hideOverlay();
+    const zip = buildZip(files);
+    download(zip, `${base}_切片_${rects.length}块.zip`);
+    toast(`已导出 ${tileMetas.length} 张切片 + 配置 · ${(zip.size / 1048576).toFixed(2)} MB`);
+  }catch(err){
+    console.error(err);
+    hideOverlay();
+    toast('导出失败：' + err.message);
+  }
+});
+
+/* =========================================================
+ *  分割：仅导出配置 JSON
+ * ========================================================= */
+$('#splitExportConfigOnly').addEventListener('click', async ()=>{
+  const it = state.split.item;
+  if(!it){ toast('请先导入素材'); return; }
+  const rects = getRectangles(it.w, it.h);
+  const base = (it.name || 'slice').replace(/\.[^.]+$/, '') || 'slice';
+  showOverlay('正在计算切片 MD5…', 0.05);
+  await sleep(60);
+
+  const src = document.createElement('canvas');
+  src.width = it.w; src.height = it.h;
+  src.getContext('2d').drawImage(it.el, 0, 0, it.w, it.h);
+
+  const tileMetas = [];
+  try{
+    for(let i = 0; i < rects.length; i++){
+      const r = rects[i];
+      const cc = document.createElement('canvas');
+      cc.width = Math.max(1, Math.round(r.w));
+      cc.height = Math.max(1, Math.round(r.h));
+      cc.getContext('2d').drawImage(src, r.x, r.y, r.w, r.h, 0, 0, cc.width, cc.height);
+      const blob = await new Promise(res => cc.toBlob(res, 'image/png'));
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const fileName = `${base}_tile${String(i+1).padStart(3, '0')}.png`;
+      tileMetas.push({
+        name: fileName,
+        index: i, r: 0, c: i,
+        x: Math.round(r.x), y: Math.round(r.y),
+        w: cc.width, h: cc.height,
+        md5: MD5(buf)
+      });
+      updateOverlay('正在计算切片 MD5…', 0.05 + (i + 1) / rects.length * 0.9);
+      if(i % 3 === 0) await sleep(0);
+    }
+    const config = buildConfig(it.type, it);
+    config.tiles = tileMetas;
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    hideOverlay();
+    download(blob, `${base}_config.json`);
+    toast(`配置已导出（${tileMetas.length} 个分片 MD5）`);
+  }catch(err){
+    console.error(err);
+    hideOverlay();
+    toast('导出失败：' + err.message);
+  }
+});
+
+/* =========================================================
+ *  分割：导出视频切片 + 配置
+ * ========================================================= */
+$('#splitExportVideo').addEventListener('click', async ()=>{
+  const it = state.split.item;
+  if(!it){ toast('请先导入视频素材'); return; }
+  if(it.type !== 'video'){ toast('图片请使用「导出图片切片」'); return; }
+  const v = it.el;
+  const duration = v.duration;
+  if(!isFinite(duration) || duration <= 0){ toast('无法获取视频时长'); return; }
+  const mime = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4']
+    .find(m => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m));
+  if(!mime){ toast('当前浏览器不支持视频录制'); return; }
+
+  const rects = getRectangles(it.w, it.h);
+  const base = (it.name || 'slice').replace(/\.[^.]+$/, '') || 'slice';
+  stopLoop();
+  v.pause();
+  v.loop = false;
+  showOverlay('准备录制…', 0.02);
+  await sleep(140);
+
+  const recs = rects.map(r=>{
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(r.w));
+    cv.height = Math.max(1, Math.round(r.h));
+    const cctx = cv.getContext('2d');
+    const stream = cv.captureStream(30);
+    let rec = null;
+    try{
+      rec = new MediaRecorder(stream, {
+        mimeType: mime,
+        videoBitsPerSecond: Math.min(10_000_000, Math.max(1_500_000, cv.width * cv.height * 4))
+      });
+    }catch(e){ rec = null; }
+    const chunks = [];
+    if(rec) rec.ondataavailable = e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    return { r, cv, cctx, stream, rec, chunks };
+  });
+  if(recs.some(x=>!x.rec)){
+    recs.forEach(x=>x.stream.getTracks().forEach(t=>t.stop()));
+    hideOverlay(); v.loop = true;
+    toast('录制初始化失败');
+    return;
+  }
+  try{ v.currentTime = 0; }catch(e){}
+  await sleep(220);
+  recs.forEach(x=>x.rec.start(100));
+  const pp = v.play(); if(pp) pp.catch(()=>{});
+  const t0 = performance.now();
+  const total = duration * 1000;
+  await new Promise(resolve=>{
+    const draw = ()=>{
+      const elapsed = performance.now() - t0;
+      const p = Math.min(1, elapsed / total);
+      updateOverlay(`正在录制切片… ${Math.round(p * 100)}%`, 0.02 + p * 0.7);
+      recs.forEach(x=>{
+        try{
+          x.cctx.drawImage(v, x.r.x, x.r.y, x.r.w, x.r.h, 0, 0, x.cv.width, x.cv.height);
+        }catch(e){}
+      });
+      if(elapsed >= total || v.ended || v.currentTime >= duration - 0.05) resolve();
+      else requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  });
+  v.pause();
+  updateOverlay('正在完成录制…', 0.74);
+  recs.forEach(x=>{ try{ if(x.rec.state !== 'inactive') x.rec.stop(); }catch(e){} });
+  await Promise.all(recs.map(x=> new Promise(res=>{
+    if(x.rec.state === 'inactive') return res();
+    x.rec.onstop = res;
+    setTimeout(res, 4000);
+  })));
+  recs.forEach(x=>x.stream.getTracks().forEach(t=>t.stop()));
+
+  const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+  const files = [];
+  const tileMetas = [];
+  try{
+    for(let i = 0; i < recs.length; i++){
+      const x = recs[i];
+      const blob = new Blob(x.chunks, { type: mime });
+      if(blob.size > 0){
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        const fileName = `${base}_tile${String(i+1).padStart(3, '0')}.${ext}`;
+        files.push({ name: fileName, data: buf });
+        tileMetas.push({
+          name: fileName,
+          index: i, r: 0, c: i,
+          x: Math.round(x.r.x), y: Math.round(x.r.y),
+          w: x.cv.width, h: x.cv.height,
+          md5: MD5(buf)
+        });
+      }
+      updateOverlay('正在计算 MD5…', 0.74 + (i + 1) / recs.length * 0.2);
+      if(i % 2 === 0) await sleep(0);
+    }
+    if(!files.length){ hideOverlay(); v.loop = true; if(state.playing) v.play().catch(()=>{}); ensureLoop(); toast('录制失败，请重试'); return; }
+    const config = buildConfig('video', it);
+    config.tiles = tileMetas;
+    files.push({ name: `${base}_config.json`, data: configJsonBytes(config) });
+    hideOverlay();
+    v.loop = true;
+    if(state.playing) v.play().catch(()=>{});
+    ensureLoop();
+    const zip = buildZip(files);
+    download(zip, `${base}_视频切片_${rects.length}块.zip`);
+    toast(`已导出 ${tileMetas.length} 个视频切片 + 配置 · ${(zip.size / 1048576).toFixed(1)} MB`);
+  }catch(err){
+    console.error(err);
+    hideOverlay();
+    v.loop = true;
+    if(state.playing) v.play().catch(()=>{});
+    ensureLoop();
+    toast('导出失败：' + err.message);
+  }
+});
+
+/* =========================================================
+ *  GIF 编码器
+ * ========================================================= */
+function quantizeFrame(imageData, maxColors = 256){
+  const data = imageData.data;
+  const total = imageData.width * imageData.height;
+  const step = Math.max(1, Math.floor(total / 24000));
+  const samples = [];
+  for(let i = 0; i < total; i += step){
+    const o = i * 4;
+    samples.push([data[o], data[o+1], data[o+2]]);
+  }
+  if(!samples.length) samples.push([0,0,0]);
+  let boxes = [samples];
+  const target = Math.min(maxColors, Math.max(2, samples.length));
+  while(boxes.length < target){
+    let bi = -1, bestRange = -1, bestCh = 0;
+    for(let i = 0; i < boxes.length; i++){
+      const box = boxes[i];
+      if(box.length < 2) continue;
+      let mn0=255,mn1=255,mn2=255,mx0=0,mx1=0,mx2=0;
+      for(let j = 0; j < box.length; j++){
+        const p = box[j];
+        if(p[0]<mn0)mn0=p[0]; if(p[0]>mx0)mx0=p[0];
+        if(p[1]<mn1)mn1=p[1]; if(p[1]>mx1)mx1=p[1];
+        if(p[2]<mn2)mn2=p[2]; if(p[2]>mx2)mx2=p[2];
+      }
+      const r0=mx0-mn0, r1=mx1-mn1, r2=mx2-mn2;
+      let ch=0, range=r0;
+      if(r1 > range){ range=r1; ch=1; }
+      if(r2 > range){ range=r2; ch=2; }
+      if(range > bestRange){ bestRange=range; bi=i; bestCh=ch; }
+    }
+    if(bi < 0 || bestRange <= 0) break;
+    const box = boxes[bi];
+    box.sort((a,b)=> a[bestCh] - b[bestCh]);
+    const mid = box.length >> 1;
+    boxes.splice(bi, 1, box.slice(0, mid), box.slice(mid));
+  }
+  const palette = boxes.map(box=>{
+    let r=0,g=0,b=0;
+    for(let i=0;i<box.length;i++){ r+=box[i][0]; g+=box[i][1]; b+=box[i][2]; }
+    const n = box.length || 1;
+    return [Math.round(r/n), Math.round(g/n), Math.round(b/n)];
+  });
+  const indices = new Uint8Array(total);
+  const cache = new Map();
+  const plen = palette.length;
+  for(let i = 0; i < total; i++){
+    const o = i * 4;
+    const r = data[o], g = data[o+1], b = data[o+2];
+    const key = ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
+    let idx = cache.get(key);
+    if(idx === undefined){
+      let best = 0, bestD = Infinity;
+      for(let p = 0; p < plen; p++){
+        const c = palette[p];
+        const dr = r - c[0], dg = g - c[1], db = b - c[2];
+        const d = dr*dr + dg*dg + db*db;
+        if(d < bestD){ bestD = d; best = p; if(d === 0) break; }
+      }
+      idx = best;
+      cache.set(key, idx);
+    }
+    indices[i] = idx;
+  }
+  return { palette, indices };
+}
+function lzwEncode(indices, minCodeSize){
+  const clearCode = 1 << minCodeSize;
+  const eoiCode = clearCode + 1;
+  let codeSize = minCodeSize + 1;
+  let nextCode = eoiCode + 1;
+  let dict = new Map();
+  const out = [];
+  let bitBuf = 0, bitCount = 0;
+  const emit = code => {
+    bitBuf |= code << bitCount;
+    bitCount += codeSize;
+    while(bitCount >= 8){ out.push(bitBuf & 0xff); bitBuf >>>= 8; bitCount -= 8; }
+  };
+  emit(clearCode);
+  if(indices.length === 0){ emit(eoiCode); if(bitCount > 0) out.push(bitBuf & 0xff); return out; }
+  let prefix = indices[0];
+  for(let i = 1; i < indices.length; i++){
+    const k = indices[i];
+    const key = (prefix << 12) | k;
+    const found = dict.get(key);
+    if(found !== undefined){ prefix = found; continue; }
+    emit(prefix);
+    if(nextCode === 4096){
+      emit(clearCode);
+      dict = new Map();
+      nextCode = eoiCode + 1;
+      codeSize = minCodeSize + 1;
+    }else{
+      if(nextCode >= (1 << codeSize) && codeSize < 12) codeSize++;
+      dict.set(key, nextCode++);
+    }
+    prefix = k;
+  }
+  emit(prefix);
+  emit(eoiCode);
+  if(bitCount > 0) out.push(bitBuf & 0xff);
+  return out;
+}
+function buildGIF(width, height, frames, delayCs){
+  const bytes = [];
+  const wb = b => bytes.push(b & 0xff);
+  const ws = v => { bytes.push(v & 0xff, (v >> 8) & 0xff); };
+  const wstr = s => { for(let i = 0; i < s.length; i++) bytes.push(s.charCodeAt(i)); };
+  wstr('GIF89a');
+  ws(width); ws(height);
+  wb(0x70); wb(0); wb(0);
+  wb(0x21); wb(0xFF); wb(11);
+  wstr('NETSCAPE2.0');
+  wb(3); wb(1); ws(0); wb(0);
+  for(const f of frames){
+    wb(0x21); wb(0xF9); wb(4);
+    wb(0x04); ws(Math.max(2, delayCs)); wb(0); wb(0);
+    wb(0x2C);
+    ws(0); ws(0); ws(width); ws(height);
+    const palLen = Math.max(1, f.palette.length);
+    let bits = 1;
+    while((1 << bits) < palLen) bits++;
+    if(bits > 8) bits = 8;
+    const entries = 1 << bits;
+    wb(0x80 | (bits - 1));
+    for(let i = 0; i < entries; i++){
+      const c = f.palette[i] || [0,0,0];
+      wb(c[0]); wb(c[1]); wb(c[2]);
+    }
+    const minCodeSize = Math.max(2, bits);
+    wb(minCodeSize);
+    const lzw = lzwEncode(f.indices, minCodeSize);
+    for(let i = 0; i < lzw.length; i += 255){
+      const chunk = lzw.slice(i, i + 255);
+      wb(chunk.length);
+      for(let j = 0; j < chunk.length; j++) wb(chunk[j]);
+    }
+    wb(0);
+  }
+  wb(0x3B);
+  return new Uint8Array(bytes);
+}
+
+/* =========================================================
+ *  分割：导出 GIF 切片
+ * ========================================================= */
+$('#splitExportGif').addEventListener('click', async ()=>{
+  const it = state.split.item;
+  if(!it){ toast('请先导入视频素材'); return; }
+  if(it.type !== 'video'){ toast('GIF 切片导出需要视频素材'); return; }
+  const v = it.el;
+  const duration = v.duration;
+  if(!isFinite(duration) || duration <= 0){ toast('无法获取视频时长'); return; }
+  const fpsSel = $('#gifFps').value;
+  let fps = fpsSel === 'auto' ? (state.detectedFps || 10) : +fpsSel;
+  fps = Math.max(2, Math.min(fps, 30));
+  const maxW = +$('#gifWidth').value;
+  const maxColors = +$('#gifPalette').value;
+
+  const rects = getRectangles(it.w, it.h);
+  const scale = Math.min(1, maxW / it.w);
+  const MAX_FRAMES = 150;
+  const frameCount = Math.max(1, Math.min(Math.ceil(duration * fps), MAX_FRAMES));
+  const delayCs = Math.max(2, Math.round(100 / fps));
+
+  stopLoop();
+  v.pause();
+  v.loop = false;
+  showOverlay(`正在生成帧（${fps} fps）…`, 0.02);
+  await sleep(100);
+
+  const srcCv = document.createElement('canvas');
+  srcCv.width = it.w; srcCv.height = it.h;
+  const sctx = srcCv.getContext('2d', { willReadFrequently: true });
+
+  const cellCvs = rects.map(r=>{
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(r.w * scale));
+    cv.height = Math.max(1, Math.round(r.h * scale));
+    return { cv, ctx: cv.getContext('2d', { willReadFrequently: true }) };
+  });
+  const cellFrames = rects.map(()=>[]);
+
+  try{
+    for(let f = 0; f < frameCount; f++){
+      const t = Math.min(f / fps, Math.max(0, duration - 0.001));
+      await seekVideo(v, t);
+      sctx.drawImage(v, 0, 0, it.w, it.h);
+      for(let i = 0; i < rects.length; i++){
+        const r = rects[i];
+        const cc = cellCvs[i];
+        cc.ctx.clearRect(0, 0, cc.cv.width, cc.cv.height);
+        cc.ctx.drawImage(srcCv, r.x, r.y, r.w, r.h, 0, 0, cc.cv.width, cc.cv.height);
+        const imgData = cc.ctx.getImageData(0, 0, cc.cv.width, cc.cv.height);
+        cellFrames[i].push(quantizeFrame(imgData, maxColors));
+      }
+      updateOverlay(`正在生成帧 ${f+1}/${frameCount}`, ((f+1)/frameCount) * 0.7);
+      if(f % 2 === 0) await sleep(0);
+    }
+    const base = (it.name || 'slice').replace(/\.[^.]+$/, '') || 'slice';
+    const files = [];
+    for(let i = 0; i < rects.length; i++){
+      updateOverlay(`正在编码 GIF ${i+1}/${rects.length}`, 0.7 + (i / rects.length) * 0.28);
+      await sleep(0);
+      const cc = cellCvs[i];
+      const bytes = buildGIF(cc.cv.width, cc.cv.height, cellFrames[i], delayCs);
+      files.push({
+        name: `${base}_tile${String(i+1).padStart(3, '0')}.gif`,
+        data: bytes
+      });
+    }
+    hideOverlay();
+    const zip = buildZip(files);
+    download(zip, `${base}_GIF切片_${rects.length}块.zip`);
+    toast(`已导出 ${files.length} 个 GIF · ${(zip.size/1048576).toFixed(2)} MB`);
+  }catch(err){
+    console.error(err);
+    hideOverlay();
+    toast('GIF 导出失败：' + err.message);
+  }finally{
+    v.loop = true;
+    if(state.playing) v.play().catch(()=>{});
+    ensureLoop();
+  }
+});
+
+/* =========================================================
+ *  拼接：配置导入
+ * ========================================================= */
+$('#importConfigBtn').addEventListener('click', ()=> $('#importConfigInput').click());
+$('#importConfigInput').addEventListener('change', e=>{
+  if(e.target.files.length) importConfigFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+async function importConfigFile(file){
+  if(!file) return;
+  const name = file.name.toLowerCase();
+  if(name.endsWith('.json')){
+    try{
+      const text = await file.text();
+      const config = JSON.parse(text);
+      if(!config.version || !config.tiles || !config.source){
+        toast('配置文件格式不正确');
+        return;
+      }
+      state.items.forEach(it => { if(it.url) URL.revokeObjectURL(it.url); });
+      state.items = [];
+      state.mergeConfig = config;
+      state.configZipFiles = null;
+      setWorkMode('merge');
+      matchTilesToItems();
+      toast(`已加载配置，请拖入 ${config.tiles.length} 个分片`);
+      refresh();
+    }catch(err){
+      console.error(err);
+      toast('JSON 解析失败：' + err.message);
+    }
+    return;
+  }
+  if(name.endsWith('.zip')){
+    showOverlay('正在解析 ZIP…', 0.1);
+    try{
+      const buf = await file.arrayBuffer();
+      const files = unzipStore(buf);
+      const configFile = files.find(f => f.name.toLowerCase().endsWith('.json') && !f.compressed);
+      if(!configFile){ hideOverlay(); toast('ZIP 中未找到配置文件'); return; }
+      const config = JSON.parse(new TextDecoder().decode(configFile.data));
+      if(!config.version || !config.tiles || !config.source){ hideOverlay(); toast('配置文件格式不正确'); return; }
+
+      state.items.forEach(it => { if(it.url) URL.revokeObjectURL(it.url); });
+      state.items = [];
+
+      const fileMap = new Map();
+      files.forEach(f => {
+        if(f.name !== configFile.name && !f.compressed) fileMap.set(f.name, f);
+      });
+      updateOverlay('正在加载分片…', 0.25);
+
+      let loaded = 0, md5ok = 0, md5fail = 0;
+      const total = config.tiles.length;
+      for(let i = 0; i < config.tiles.length; i++){
+        const tile = config.tiles[i];
+        const f = fileMap.get(tile.name);
+        if(!f){ console.warn('分片缺失：', tile.name); continue; }
+        if(tile.md5){
+          const actual = MD5(f.data);
+          if(actual === tile.md5) md5ok++;
+          else { md5fail++; console.warn('MD5 不匹配：', tile.name); }
+        }
+        try{
+          const blob = new Blob([f.data], { type: config.type === 'image' ? 'image/png' : 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          if(config.type === 'image'){
+            const img = new Image();
+            await new Promise((res, rej)=>{ img.onload = res; img.onerror = rej; img.src = url; });
+            state.items.push({
+              id: ++uid, type: 'image', name: tile.name, url, el: img,
+              w: img.naturalWidth || tile.w, h: img.naturalHeight || tile.h,
+              pos: {
+                index: tile.index !== undefined ? tile.index : (tile.r + ',' + tile.c),
+                r: tile.r, c: tile.c,
+                x: tile.x, y: tile.y, w: tile.w, h: tile.h
+              }
+            });
+          }else{
+            const v = document.createElement('video');
+            v.src = url; v.muted = true; v.loop = true; v.playsInline = true;
+            v.preload = 'auto';
+            await new Promise(res=>{
+              let ok = false;
+              const fin = ()=>{ if(!ok){ ok = true; res(); } };
+              v.onloadedmetadata = fin; v.onloadeddata = fin; v.onerror = fin;
+              setTimeout(fin, 5000);
+            });
+            state.items.push({
+              id: ++uid, type: 'video', name: tile.name, url, el: v,
+              w: v.videoWidth || tile.w, h: v.videoHeight || tile.h,
+              pos: {
+                index: tile.index !== undefined ? tile.index : (tile.r + ',' + tile.c),
+                r: tile.r, c: tile.c,
+                x: tile.x, y: tile.y, w: tile.w, h: tile.h
+              }
+            });
+          }
+          loaded++;
+        }catch(e){ console.warn('加载分片失败', tile.name, e); }
+        updateOverlay(`正在加载分片 ${i+1}/${total}`, 0.25 + (i + 1) / total * 0.7);
+      }
+      state.mergeConfig = config;
+      state.configZipFiles = fileMap;
+      setWorkMode('merge');
+      hideOverlay();
+      syncPlayback();
+      refresh();
+      const msg = [`已从配置还原 ${loaded}/${total} 个分片`];
+      if(md5fail > 0) msg.push(`⚠️ ${md5fail} 个 MD5 不匹配`);
+      else if(md5ok > 0) msg.push(`✅ MD5 全部校验通过`);
+      toast(msg.join(' · '));
+    }catch(err){
+      console.error(err);
+      hideOverlay();
+      toast('ZIP 解析失败：' + err.message);
+    }
+    return;
+  }
+  toast('仅支持 .zip 或 .json 配置');
+}
+
+function matchTilesToItems(){
+  if(!state.mergeConfig) return;
+  const tileMap = new Map(state.mergeConfig.tiles.map((t, i) => [t.name, t]));
+  state.items.forEach(it=>{
+    const tile = tileMap.get(it.name);
+    if(tile){
+      it.pos = {
+        index: tile.index !== undefined ? tile.index : (tile.r + ',' + tile.c),
+        r: tile.r, c: tile.c,
+        x: tile.x, y: tile.y, w: tile.w, h: tile.h
+      };
+    }
+  });
+}
+
+$('#configStatus').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-act="exit-config"]');
+  if(!btn) return;
+  exitConfigMode();
+});
+function exitConfigMode(){
+  if(!state.mergeConfig) return;
+  state.mergeConfig = null;
+  state.configZipFiles = null;
+  state.items.forEach(it => { delete it.pos; });
+  toast('已退出配置模式');
+  refresh();
+}
+
+/* =========================================================
+ *  拼接：导出图片
+ * ========================================================= */
+$('#exportImg').addEventListener('click', async ()=>{
+  if(!state.items.length){ toast('请先添加素材'); return; }
+  drawComposite();
+  const format = $('#imgFormat').value;
+  const quality = +$('#imgQuality').value / 100;
+  const scale = +$('#imgScale').value / 100;
+  let target = canvas;
+  if(scale !== 1){
+    target = document.createElement('canvas');
+    target.width = Math.max(1, Math.round(canvas.width * scale));
+    target.height = Math.max(1, Math.round(canvas.height * scale));
+    const c = target.getContext('2d');
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(canvas, 0, 0, target.width, target.height);
+  }
+  const mime = format === 'png' ? 'image/png' : format === 'webp' ? 'image/webp' : 'image/jpeg';
+  const blob = await new Promise(res => target.toBlob(res, mime, format === 'png' ? undefined : quality));
+  if(!blob){ toast('导出失败，请重试'); return; }
+  const ext = format === 'png' ? 'png' : format === 'webp' ? 'webp' : 'jpg';
+  download(blob, `拼接结果_${target.width}x${target.height}.${ext}`);
+  toast(`已导出 ${target.width}×${target.height} · ${(blob.size/1048576).toFixed(2)} MB`);
+});
+
+/* =========================================================
+ *  拼接：导出视频
+ * ========================================================= */
+$('#exportVideo').addEventListener('click', async ()=>{
+  if(!state.items.length){ toast('请先添加素材'); return; }
+  const videos = state.items.filter(i=>i.type === 'video');
+  if(!videos.length){ toast('导出视频需要素材中包含视频'); return; }
+  if(typeof MediaRecorder === 'undefined'){ toast('当前浏览器不支持视频录制'); return; }
+  const candidates = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'];
+  const mime = candidates.find(m => MediaRecorder.isTypeSupported(m));
+  if(!mime){ toast('当前浏览器不支持视频录制'); return; }
+  const durations = videos.map(v=>v.el.duration).filter(d=>isFinite(d) && d > 0);
+  if(!durations.length){ toast('无法获取视频时长'); return; }
+  const duration = Math.min(...durations);
+  showOverlay('准备录制…', 0.05);
+  await sleep(120);
+  drawComposite();
+  const stream = canvas.captureStream(30);
+  const brSel = $('#videoBitrate').value;
+  const bitrate = brSel === 'auto'
+    ? Math.min(20_000_000, Math.max(2_000_000, canvas.width * canvas.height * 4))
+    : +brSel;
+  let rec;
+  try{ rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate }); }
+  catch(err){ hideOverlay(); toast('无法启动录制：' + err.message); return; }
+  const chunks = [];
+  rec.ondataavailable = e => { if(e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(res => { rec.onstop = res; });
+  videos.forEach(v=>{ try{ v.el.currentTime = 0; }catch(_){} });
+  state.playing = true;
+  $('#playBtn').textContent = '⏸ 暂停';
+  startLoop();
+  videos.forEach(v=>v.el.play().catch(()=>{}));
+  await sleep(200);
+  rec.start(100);
+  const startT = performance.now();
+  const total = duration * 1000;
+  const timer = setInterval(()=>{
+    const p = Math.min(1, (performance.now() - startT) / total);
+    updateOverlay(`正在录制… ${(p*100).toFixed(0)}%`, p * 0.95);
+  }, 100);
+  await sleep(total + 250);
+  clearInterval(timer);
+  if(rec.state !== 'inactive') rec.stop();
+  await stopped;
+  stream.getTracks().forEach(t=>t.stop());
+  hideOverlay();
+  if(!chunks.length){ toast('录制失败，请重试'); return; }
+  const blob = new Blob(chunks, { type: mime });
+  const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+  download(blob, `拼接视频_${canvas.width}x${canvas.height}.${ext}`);
+  toast(`视频已导出 · ${(blob.size/1048576).toFixed(1)} MB`);
+});
+
+/* =========================================================
+ *  拼接：导出 GIF
+ * ========================================================= */
+$('#exportGif').addEventListener('click', async ()=>{
+  if(!state.items.length){ toast('请先添加素材'); return; }
+  const videos = state.items.filter(i=>i.type === 'video');
+  if(!videos.length){ toast('导出 GIF 需要素材中包含视频'); return; }
+  const fpsSel = $('#gifFps').value;
+  let fps = fpsSel === 'auto' ? (state.detectedFps || 30) : +fpsSel;
+  fps = Math.max(1, Math.min(fps, 30));
+  const maxW = +$('#gifWidth').value;
+  const maxColors = +$('#gifPalette').value;
+  const durations = videos.map(v=>v.el.duration).filter(d=>isFinite(d) && d > 0);
+  if(!durations.length){ toast('无法获取视频时长'); return; }
+  const duration = Math.min(...durations);
+  pauseVideos();
+  showOverlay(`正在生成帧（${fps} fps）…`, 0.02);
+  await sleep(80);
+
+  let L;
+  if(state.mergeConfig){
+    L = { cols: 1, rows: 1, cellW: state.mergeConfig.source.width, cellH: state.mergeConfig.source.height };
+  }else{
+    L = computeLayout();
+  }
+  const fullW = state.mergeConfig ? state.mergeConfig.source.width : L.cols * L.cellW;
+  const fullH = state.mergeConfig ? state.mergeConfig.source.height : L.rows * L.cellH;
+  const scale = Math.min(1, maxW / fullW);
+  const w = Math.max(2, Math.round(fullW * scale));
+  const h = Math.max(2, Math.round(fullH * scale));
+
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const tctx = tmp.getContext('2d', { willReadFrequently: true });
+  const MAX_FRAMES = 320;
+  const frameCount = Math.max(1, Math.min(Math.ceil(duration * fps), MAX_FRAMES));
+  const delayCs = Math.max(2, Math.round(100 / fps));
+  const frames = [];
+
+  try{
+    for(let i = 0; i < frameCount; i++){
+      const t = Math.min(i / fps, Math.max(0, duration - 0.001));
+      await Promise.all(videos.map(v => seekVideo(v.el, t)));
+      tctx.fillStyle = '#000';
+      tctx.fillRect(0, 0, w, h);
+      if(state.mergeConfig){
+        state.items.forEach(it=>{
+          if(!it.pos) return;
+          try{
+            if(it.type === 'video'){
+              if(it.el.readyState >= 2) tctx.drawImage(it.el, it.pos.x * scale, it.pos.y * scale, it.pos.w * scale, it.pos.h * scale);
+            }else{
+              tctx.drawImage(it.el, it.pos.x * scale, it.pos.y * scale, it.pos.w * scale, it.pos.h * scale);
+            }
+          }catch(e){}
+        });
+      }else{
+        state.items.forEach((it, idx)=>{
+          const c = idx % L.cols;
+          const r = Math.floor(idx / L.cols);
+          const x = c * L.cellW * scale;
+          const y = r * L.cellH * scale;
+          const dw = L.cellW * scale;
+          const dh = L.cellH * scale;
+          try{
+            if(it.type === 'video'){
+              if(it.el.readyState >= 2) tctx.drawImage(it.el, x, y, dw, dh);
+            }else{
+              tctx.drawImage(it.el, x, y, dw, dh);
+            }
+          }catch(e){}
+        });
+      }
+      const imgData = tctx.getImageData(0, 0, w, h);
+      frames.push(quantizeFrame(imgData, maxColors));
+      updateOverlay(`正在生成帧 ${i+1}/${frameCount}`, ((i+1)/frameCount) * 0.72);
+      if(i % 2 === 0) await sleep(0);
+    }
+    updateOverlay('正在编码 GIF…', 0.78);
+    await sleep(40);
+    const gifBytes = buildGIF(w, h, frames, delayCs);
+    updateOverlay('完成', 1);
+    const blob = new Blob([gifBytes], { type: 'image/gif' });
+    hideOverlay();
+    download(blob, `拼接动画_${w}x${h}.gif`);
+    toast(`GIF 已导出 · ${(blob.size/1048576).toFixed(2)} MB · ${frameCount} 帧`);
+  }catch(err){
+    console.error(err);
+    hideOverlay();
+    toast('GIF 导出失败：' + err.message);
+  }finally{
+    playVideos();
+  }
+});
+
+/* =========================================================
+ *  其它控件
+ * ========================================================= */
+$('#layoutSeg').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-layout]');
+  if(!btn) return;
+  $$('#layoutSeg button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.layout = btn.dataset.layout;
+  $('#colsField').style.display = state.layout === 'grid' ? 'flex' : 'none';
+  refresh();
+});
+$('#colsInput').addEventListener('input', e=>{
+  state.cols = Math.max(1, Math.min(64, parseInt(e.target.value) || 1));
+  refresh();
+});
+$('#clearBtn').addEventListener('click', ()=>{
+  state.items.forEach(i=>{ if(i.url) URL.revokeObjectURL(i.url); });
+  state.items = [];
+  state.manualOrder = false;
+  state.mergeConfig = null;
+  state.configZipFiles = null;
+  stopLoop();
+  refresh();
+});
+$('#playBtn').addEventListener('click', ()=>{
+  if(state.playing) pauseVideos(); else playVideos();
+});
+$('#imgFormat').addEventListener('change', e=>{
+  $('#qualityField').style.display = e.target.value === 'png' ? 'none' : 'flex';
+});
+$('#collapseBtn').addEventListener('click', e=>{
+  e.stopPropagation();
+  $('#sidebar').classList.toggle('open');
+});
+$('#brandRow').addEventListener('click', ()=>{
+  if(window.matchMedia('(max-width:900px)').matches){
+    $('#sidebar').classList.toggle('open');
+  }
+});
+
+/* =========================================================
+ *  启动
+ * ========================================================= */
+refresh();
+</script>
+</body>
+</html>
